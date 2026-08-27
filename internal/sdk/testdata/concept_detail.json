@@ -1,0 +1,6 @@
+{
+  "concept": {"id": "concept-1", "name": "Cliente", "description": "Persona que compra", "isActive": true},
+  "attributes": [
+    {"id": "attr-1", "name": "email", "description": "Correo de contacto", "isActive": true}
+  ]
+}

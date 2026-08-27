@@ -1,0 +1,14 @@
+[
+  {
+    "chunkId": 42,
+    "documentId": "doc-9",
+    "documentTitle": "Manual de ventas",
+    "filename": "manual.pdf",
+    "ordinal": 3,
+    "pageFrom": 5,
+    "pageTo": 6,
+    "headingPath": "Procesos > Ventas",
+    "excerpt": "El proceso de venta comienza…",
+    "score": 0.87
+  }
+]

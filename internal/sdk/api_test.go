@@ -1,8 +1,11 @@
 package sdk
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -20,7 +23,14 @@ func serverWithFixture(t *testing.T, fixture string, capturar *http.Request) *Cl
 	}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if capturar != nil {
-			*capturar = *r.Clone(r.Context())
+			// El cuerpo se lee y se repone como un nuevo lector para que
+			// capturar.Body siga siendo legible después de que el handler
+			// termine (r.Clone no duplica el flujo subyacente del Body).
+			cuerpo, _ := io.ReadAll(r.Body)
+			r.Body = io.NopCloser(bytes.NewReader(cuerpo))
+			clon := r.Clone(r.Context())
+			clon.Body = io.NopCloser(bytes.NewReader(cuerpo))
+			*capturar = *clon
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.Write(b)
@@ -260,5 +270,224 @@ func TestSchemaEnviaLaRutaConScopeDeOrganizacion(t *testing.T) {
 	}
 	if visto.Method != http.MethodGet {
 		t.Errorf("método = %q, se esperaba GET", visto.Method)
+	}
+}
+
+// Los cinco tests siguientes cubren SearchDocuments, GetDocument,
+// ListConcepts, GetConcept y ListRules: el brief original solo traía tests
+// para Ask, ListDocuments y Query, pero TDD es restricción global del
+// proyecto y estos cinco métodos sustentan las Tasks 12-18. Cada uno
+// asevera sobre verbo+ruta exacta y sobre los valores decodificados de la
+// respuesta (no solo que la petición se hizo), y GetDocument/GetConcept
+// comprueban además que un identificador con caracteres especiales llega
+// escapado en la ruta.
+
+func TestSearchDocumentsEnviaLaConsultaYDecodificaLosResultados(t *testing.T) {
+	var visto http.Request
+	c := serverWithFixture(t, "search_documents.json", &visto)
+
+	resultados, err := c.SearchDocuments(context.Background(), "acme", "ventas", 5)
+	if err != nil {
+		t.Fatalf("SearchDocuments: %v", err)
+	}
+
+	if visto.URL.Path != "/v1/organizations/acme/search/documents" {
+		t.Errorf("ruta = %q", visto.URL.Path)
+	}
+	if visto.Method != http.MethodPost {
+		t.Errorf("método = %q, se esperaba POST", visto.Method)
+	}
+	cuerpoBytes, err := io.ReadAll(visto.Body)
+	if err != nil {
+		t.Fatalf("leyendo el cuerpo capturado: %v", err)
+	}
+	var cuerpo map[string]any
+	if err := json.Unmarshal(cuerpoBytes, &cuerpo); err != nil {
+		t.Fatalf("el cuerpo enviado no es JSON válido: %v", err)
+	}
+	if cuerpo["query"] != "ventas" {
+		t.Errorf("cuerpo.query = %v, se esperaba ventas", cuerpo["query"])
+	}
+	if cuerpo["limit"] != float64(5) {
+		t.Errorf("cuerpo.limit = %v, se esperaba 5", cuerpo["limit"])
+	}
+
+	if len(resultados) != 1 {
+		t.Fatalf("len(resultados) = %d, se esperaba 1", len(resultados))
+	}
+	r := resultados[0]
+	if r.DocumentID != "doc-9" || r.ChunkID != 42 || r.Ordinal != 3 {
+		t.Errorf("resultado mal decodificado: %+v", r)
+	}
+	if r.Score != 0.87 {
+		t.Errorf("Score = %v, se esperaba 0.87", r.Score)
+	}
+}
+
+func TestSearchDocumentsUsaLimitePorDefectoConCeroYNegativo(t *testing.T) {
+	for _, limite := range []int{0, -3} {
+		var visto http.Request
+		c := serverWithFixture(t, "search_documents.json", &visto)
+
+		if _, err := c.SearchDocuments(context.Background(), "acme", "ventas", limite); err != nil {
+			t.Fatalf("SearchDocuments(limit=%d): %v", limite, err)
+		}
+		cuerpoBytes, err := io.ReadAll(visto.Body)
+		if err != nil {
+			t.Fatalf("leyendo el cuerpo capturado: %v", err)
+		}
+		var cuerpo map[string]any
+		if err := json.Unmarshal(cuerpoBytes, &cuerpo); err != nil {
+			t.Fatalf("el cuerpo enviado no es JSON válido: %v", err)
+		}
+		if cuerpo["limit"] != float64(10) {
+			t.Errorf("limit=%d: cuerpo.limit = %v, se esperaba el valor por defecto 10", limite, cuerpo["limit"])
+		}
+	}
+}
+
+func TestGetDocumentDecodificaElDocumentoYEscapaElID(t *testing.T) {
+	var visto http.Request
+	c := serverWithFixture(t, "document.json", &visto)
+
+	doc, err := c.GetDocument(context.Background(), "acme", "doc/1")
+	if err != nil {
+		t.Fatalf("GetDocument: %v", err)
+	}
+
+	if visto.RequestURI != "/v1/organizations/acme/documents/doc%2F1" {
+		t.Errorf("RequestURI = %q — el id con barra debe llegar escapado (%%2F)", visto.RequestURI)
+	}
+	if visto.Method != http.MethodGet {
+		t.Errorf("método = %q, se esperaba GET", visto.Method)
+	}
+	if doc.ID != "doc-1" || doc.SizeBytes != 402113 || doc.Status != "READY" {
+		t.Errorf("documento mal decodificado: %+v", doc)
+	}
+}
+
+func TestListConceptsDecodificaElGrafo(t *testing.T) {
+	var visto http.Request
+	c := serverWithFixture(t, "concepts.json", &visto)
+
+	grafo, err := c.ListConcepts(context.Background(), "acme")
+	if err != nil {
+		t.Fatalf("ListConcepts: %v", err)
+	}
+
+	if visto.URL.Path != "/v1/organizations/acme/knowledge/concepts" {
+		t.Errorf("ruta = %q", visto.URL.Path)
+	}
+	if visto.Method != http.MethodGet {
+		t.Errorf("método = %q, se esperaba GET", visto.Method)
+	}
+	if len(grafo.Concepts) != 1 {
+		t.Fatalf("len(Concepts) = %d, se esperaba 1", len(grafo.Concepts))
+	}
+	n := grafo.Concepts[0]
+	if n.ID != "concept-1" || n.Name != "Cliente" || !n.IsActive {
+		t.Errorf("nodo mal decodificado: %+v", n)
+	}
+	if n.RecordCount == nil || *n.RecordCount != 120 {
+		t.Errorf("RecordCount mal decodificado: %+v", n.RecordCount)
+	}
+}
+
+func TestGetConceptDecodificaElDetalleYEscapaElID(t *testing.T) {
+	var visto http.Request
+	c := serverWithFixture(t, "concept_detail.json", &visto)
+
+	// El id lleva espacio y barra a propósito: net/url escapa un espacio crudo
+	// a %20 igual con o sin url.PathEscape (lo comprueba automáticamente al
+	// serializar la petición), así que un id de un solo espacio no detecta si
+	// el código deja de escapar. La barra sí lo hace: sin escapar, Go la trata
+	// como separador de segmento y no la reescapa a %2F.
+	detalle, err := c.GetConcept(context.Background(), "acme", "a b/c")
+	if err != nil {
+		t.Fatalf("GetConcept: %v", err)
+	}
+
+	if visto.RequestURI != "/v1/organizations/acme/knowledge/concepts/a%20b%2Fc" {
+		t.Errorf("RequestURI = %q — el id con espacio y barra debe llegar escapado (%%20 y %%2F)", visto.RequestURI)
+	}
+	if visto.Method != http.MethodGet {
+		t.Errorf("método = %q, se esperaba GET", visto.Method)
+	}
+	if detalle.Concept.ID != "concept-1" || detalle.Concept.Name != "Cliente" {
+		t.Errorf("Concept mal decodificado: %+v", detalle.Concept)
+	}
+	if len(detalle.Attributes) != 1 || detalle.Attributes[0].Name != "email" {
+		t.Errorf("Attributes mal decodificado: %+v", detalle.Attributes)
+	}
+}
+
+func TestListRulesDecodificaLasReglas(t *testing.T) {
+	var visto http.Request
+	c := serverWithFixture(t, "rules.json", &visto)
+
+	reglas, err := c.ListRules(context.Background(), "acme")
+	if err != nil {
+		t.Fatalf("ListRules: %v", err)
+	}
+
+	if visto.URL.Path != "/v1/organizations/acme/rules" {
+		t.Errorf("ruta = %q", visto.URL.Path)
+	}
+	if visto.Method != http.MethodGet {
+		t.Errorf("método = %q, se esperaba GET", visto.Method)
+	}
+	if len(reglas) != 1 {
+		t.Fatalf("len(reglas) = %d, se esperaba 1", len(reglas))
+	}
+	if reglas[0].ID != "rule-1" || reglas[0].Details != "No superar el 20%" || reglas[0].Status != "ACTIVE" {
+		t.Errorf("regla mal decodificada: %+v", reglas[0])
+	}
+}
+
+// Los tres tests siguientes cierran los caminos de Rows() que faltaban:
+// cadena vacía, cadena con JSON inválido dentro, y `data:null` explícito
+// (hasta ahora solo se cubría la clave ausente). Ver ronda de correcciones
+// 1/5 en el informe de esta tarea.
+
+func TestQueryDataNuloExplicitoDevuelveCero(t *testing.T) {
+	var resp QueryResponse
+	if err := json.Unmarshal([]byte(`{"data":null}`), &resp); err != nil {
+		t.Fatal(err)
+	}
+	filas, err := resp.Rows()
+	if err != nil {
+		t.Fatalf("Rows con data:null no debe fallar: %v", err)
+	}
+	if len(filas) != 0 {
+		t.Errorf("se esperaban 0 filas, se obtuvieron %d", len(filas))
+	}
+}
+
+func TestQueryDataComoCadenaVaciaDevuelveCero(t *testing.T) {
+	var resp QueryResponse
+	if err := json.Unmarshal([]byte(`{"data":""}`), &resp); err != nil {
+		t.Fatal(err)
+	}
+	filas, err := resp.Rows()
+	if err != nil {
+		t.Fatalf("Rows con data:\"\" no debe fallar: %v", err)
+	}
+	if len(filas) != 0 {
+		t.Errorf("se esperaban 0 filas, se obtuvieron %d", len(filas))
+	}
+}
+
+func TestQueryDataComoCadenaConJSONInvalidoDevuelveError(t *testing.T) {
+	var resp QueryResponse
+	if err := json.Unmarshal([]byte(`{"data":"esto no es json"}`), &resp); err != nil {
+		t.Fatal(err)
+	}
+	_, err := resp.Rows()
+	if err == nil {
+		t.Fatal("se esperaba un error al deshacer una cadena con JSON inválido dentro")
+	}
+	var errSintaxis *json.SyntaxError
+	if !errors.As(err, &errSintaxis) {
+		t.Errorf("err = %v (%T), se esperaba *json.SyntaxError", err, err)
 	}
 }

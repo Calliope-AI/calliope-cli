@@ -1,0 +1,16 @@
+{
+  "id": "doc-1",
+  "filename": "informe.pdf",
+  "title": "Informe anual",
+  "mimeType": "application/pdf",
+  "declaredMime": "application/pdf",
+  "sizeBytes": 402113,
+  "status": "READY",
+  "pageCount": 24,
+  "charCount": 51200,
+  "language": "es",
+  "tags": ["finanzas"],
+  "createdAt": "2026-01-04T10:00:00Z",
+  "updatedAt": "2026-01-04T10:05:00Z",
+  "readyAt": "2026-01-04T10:05:00Z"
+}

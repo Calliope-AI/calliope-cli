@@ -1,0 +1,5 @@
+{
+  "concepts": [
+    {"id": "concept-1", "name": "Cliente", "isActive": true, "recordCount": 120, "sourceCount": 3}
+  ]
+}

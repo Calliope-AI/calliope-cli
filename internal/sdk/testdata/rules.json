@@ -1,0 +1,3 @@
+[
+  {"id": "rule-1", "name": "Descuento máximo", "details": "No superar el 20%", "category": "ventas", "status": "ACTIVE"}
+]

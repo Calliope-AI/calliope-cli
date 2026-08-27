@@ -186,8 +186,11 @@ type QueryResponse struct {
 }
 
 // Rows devuelve las filas del resultado, venga `data` como array o como cadena.
+// El guard solo comprueba longitud cero (clave ausente): un `data:null` explícito
+// no necesita caso aparte porque json.Unmarshal de "null" en un slice ya lo deja
+// en nil sin error (comprobado por TestQueryDataNuloExplicitoDevuelveCero).
 func (r *QueryResponse) Rows() ([]map[string]any, error) {
-	if len(r.Data) == 0 || string(r.Data) == "null" {
+	if len(r.Data) == 0 {
 		return nil, nil
 	}
 
