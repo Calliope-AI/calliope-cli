@@ -1,6 +1,11 @@
 package output
 
-import "errors"
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+)
 
 // Code identifica la clase de fallo y determina el código de salida.
 type Code string
@@ -67,4 +72,42 @@ func ExitCodeFor(err error) int {
 		return cliErr.ExitCode()
 	}
 	return 1
+}
+
+// WriteError escribe el error en w según el modo (JSON o texto).
+// En modo JSON, serializa el error como un Envelope completo.
+// En modo texto, imprime el mensaje y el hint (si existe) en líneas separadas.
+// Los errores genéricos (no CLIError) se mapean a un Envelope con código ERROR.
+func WriteError(w io.Writer, err error, jsonMode bool) error {
+	if err == nil {
+		return nil
+	}
+
+	var cliErr *CLIError
+	if !errors.As(err, &cliErr) {
+		// Error genérico: mapear a CLIError con código ERROR.
+		cliErr = NewError(CodeGeneric, err.Error(), "")
+	}
+
+	if jsonMode {
+		// En modo JSON, serializar el envelope completo.
+		envelope := cliErr.Envelope()
+		b, err := json.Marshal(envelope)
+		if err != nil {
+			return err
+		}
+		_, err = fmt.Fprintln(w, string(b))
+		return err
+	}
+
+	// En modo texto, imprimir el mensaje y el hint por separado.
+	if _, err := fmt.Fprintln(w, cliErr.Message); err != nil {
+		return err
+	}
+	if cliErr.Hint != "" {
+		if _, err := fmt.Fprintln(w, cliErr.Hint); err != nil {
+			return err
+		}
+	}
+	return nil
 }
