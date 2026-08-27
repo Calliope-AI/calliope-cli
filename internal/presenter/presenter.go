@@ -48,23 +48,23 @@ func Render(r Result, opts Options) error {
 	case ModeJQ:
 		return renderJQ(w, r.Envelope, opts.JQExpr)
 	case ModeQuiet:
-		return escribirJSON(w, r.Envelope.Data)
+		return writeJSON(w, r.Envelope.Data)
 	case ModeMarkdown:
 		if r.Markdown != nil {
 			return r.Markdown(w)
 		}
-		return escribirJSON(w, r.Envelope)
+		return writeJSON(w, r.Envelope)
 	case ModeJSON:
-		return escribirJSON(w, r.Envelope)
+		return writeJSON(w, r.Envelope)
 	default: // ModeAuto
 		if opts.IsTTY && r.Text != nil {
 			return r.Text(w)
 		}
-		return escribirJSON(w, r.Envelope)
+		return writeJSON(w, r.Envelope)
 	}
 }
 
-func escribirJSON(w io.Writer, v any) error {
+func writeJSON(w io.Writer, v any) error {
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
 	return enc.Encode(v)

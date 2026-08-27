@@ -36,3 +36,19 @@ func TestJQInvalidoDevuelveErrorDeUso(t *testing.T) {
 		t.Errorf("código de salida = %d, se esperaba 2 (uso incorrecto)", got)
 	}
 }
+
+func TestJQErrorEnEvaluacionDevuelveErrorDeUso(t *testing.T) {
+	// Expresión sintácticamente válida pero que falla al evaluar:
+	// .data es un array, no tiene propiedades, así que .data.foo es un error de tipo.
+	r := Result{Envelope: output.OKEnvelope(
+		[]map[string]any{{"id": "doc-1"}}, "1 documento")}
+
+	var out bytes.Buffer
+	err := Render(r, Options{Mode: ModeJQ, JQExpr: ".data.foo", Out: &out})
+	if err == nil {
+		t.Fatal("se esperaba un error por evaluación jq fallida")
+	}
+	if got := output.ExitCodeFor(err); got != 2 {
+		t.Errorf("código de salida = %d, se esperaba 2 (uso incorrecto)", got)
+	}
+}

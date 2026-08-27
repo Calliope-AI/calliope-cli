@@ -41,7 +41,7 @@ func renderJQ(w io.Writer, env output.Envelope, expr string) error {
 			return output.NewError(output.CodeUsage,
 				fmt.Sprintf("Error al evaluar la expresión jq: %v", err), "")
 		}
-		if err := escribirJSON(w, v); err != nil {
+		if err := writeJSON(w, v); err != nil {
 			return err
 		}
 	}
