@@ -1,0 +1,10 @@
+{
+  "id": "user-1",
+  "email": "ana@acme.com",
+  "username": "ana",
+  "firstName": "Ana",
+  "lastName": "Gómez",
+  "organizations": [
+    {"id": "acme", "name": "Acme Corp", "userRole": "ADMIN"}
+  ]
+}

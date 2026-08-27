@@ -1,0 +1,19 @@
+{
+  "success": true,
+  "text": "Las ventas crecieron un 12% interanual.",
+  "rowCount": 2,
+  "data": [{"mes": "2026-01", "ventas": 1200}, {"mes": "2026-02", "ventas": 1344}],
+  "analysisType": "trend",
+  "sources": [
+    {
+      "citation": "Informe anual, p. 12",
+      "chunkId": 88,
+      "documentId": "doc-1",
+      "documentTitle": "Informe anual",
+      "filename": "informe.pdf",
+      "page": 12,
+      "headingPath": "Resultados > Ventas",
+      "excerpt": "Las ventas del ejercicio…"
+    }
+  ]
+}

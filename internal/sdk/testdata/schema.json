@@ -1,0 +1,32 @@
+{
+  "organizationId": "acme",
+  "tables": [
+    {
+      "id": "tbl-1",
+      "tableName": "fct_ventas",
+      "name": "Ventas",
+      "description": "Hechos de ventas mensuales",
+      "source": "warehouse",
+      "columns": [
+        {
+          "id": "col-1",
+          "name": "mes",
+          "type": "date",
+          "nullable": false,
+          "isPrimaryKey": true,
+          "isForeignKey": false,
+          "description": "Mes de la venta",
+          "sampleValues": ["2026-01", "2026-02"]
+        },
+        {
+          "id": "col-2",
+          "name": "importe",
+          "type": "numeric",
+          "nullable": true,
+          "isPrimaryKey": false,
+          "isForeignKey": false
+        }
+      ]
+    }
+  ]
+}
