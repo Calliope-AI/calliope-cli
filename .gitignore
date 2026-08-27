@@ -3,3 +3,9 @@ dist/
 /calliope
 bin/
 .superpowers/
+
+# El .gitignore global del usuario ignora un componente llamado "version",
+# que oculta internal/version/ entera. Se reincluye aquí: primero el
+# directorio, porque git no puede reincluir un fichero cuyo padre está excluido.
+!internal/version/
+!internal/version/**
