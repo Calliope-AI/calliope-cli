@@ -1,6 +1,7 @@
 package output
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"testing"
@@ -42,5 +43,44 @@ func TestExitCodeForDesenvuelveCLIError(t *testing.T) {
 
 	if got := ExitCodeFor(envuelto); got != 3 {
 		t.Errorf("ExitCodeFor(envuelto) = %d, se esperaba 3", got)
+	}
+}
+
+func TestCLIErrorErrorDevolverSoloMensaje(t *testing.T) {
+	err := NewError(CodeNotFound, "Documento no encontrado.", "Lista los documentos con: calliope docs list")
+	if got := err.Error(); got != "Documento no encontrado." {
+		t.Errorf("Error() = %q, se esperaba %q", got, "Documento no encontrado.")
+	}
+}
+
+func TestCLIErrorEnvelopeLlevahint(t *testing.T) {
+	err := NewError(CodeNotFound, "Documento no encontrado.", "Lista los documentos con: calliope docs list")
+	env := err.Envelope()
+
+	if env.Error == nil || env.Error.Hint == "" {
+		t.Errorf("Envelope debe incluir hint: %+v", env.Error)
+	}
+	if env.Error.Hint != "Lista los documentos con: calliope docs list" {
+		t.Errorf("Hint = %q, se esperaba %q", env.Error.Hint, "Lista los documentic con: calliope docs list")
+	}
+}
+
+func TestCLIErrorEnvelopeJSONIncluirHint(t *testing.T) {
+	err := NewError(CodeNotFound, "Documento no encontrado.", "Lista los documentos con: calliope docs list")
+	env := err.Envelope()
+
+	b, _ := json.Marshal(env)
+	var got map[string]any
+	if err := json.Unmarshal(b, &got); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	errObj, ok := got["error"].(map[string]any)
+	if !ok {
+		t.Fatalf("error object missing")
+	}
+
+	if hint, ok := errObj["hint"]; !ok || hint == "" {
+		t.Errorf("JSON del error debe incluir hint: %s", b)
 	}
 }

@@ -18,6 +18,9 @@ type Error struct {
 }
 
 // Envelope es la forma de toda salida JSON del CLI.
+// El campo Data usa omitempty, pero nota: solo omite si el valor de la interfaz es nil.
+// Un puntero nil tipado (ej. (*Doc)(nil)) serializa como null, no se omite.
+// Un slice vacío serializa como [], no se omite. Esto es intencionado.
 type Envelope struct {
 	OK          bool         `json:"ok"`
 	Data        any          `json:"data,omitempty"`

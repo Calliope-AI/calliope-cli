@@ -54,3 +54,55 @@ func TestEnvelopeDeErrorOmiteData(t *testing.T) {
 		t.Errorf("se esperaba un hint accionable: %s", b)
 	}
 }
+
+func TestEnvelopeDataPunteroNilTipadoSerializaNull(t *testing.T) {
+	type Doc struct {
+		ID string `json:"id"`
+	}
+
+	// Un puntero nil tipado se serializa como null, no se omite.
+	env := Envelope{
+		OK:   true,
+		Data: (*Doc)(nil),
+	}
+
+	b, _ := json.Marshal(env)
+	var got map[string]any
+	if err := json.Unmarshal(b, &got); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	// omitempty no aplica a punteros nil tipados, solo a interfaces nil.
+	if _, existe := got["data"]; !existe {
+		t.Errorf("puntero nil tipado debería serializar como null, no omitirse: %s", b)
+	}
+	if got["data"] != nil {
+		t.Errorf("puntero nil tipado debería ser null, fue: %v", got["data"])
+	}
+}
+
+func TestEnvelopeDataSliceVacioSerializaArray(t *testing.T) {
+	// Un slice vacío se serializa como array, no se omite.
+	env := Envelope{
+		OK:   true,
+		Data: []string{},
+	}
+
+	b, _ := json.Marshal(env)
+	var got map[string]any
+	if err := json.Unmarshal(b, &got); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	// Los slices vacíos se serializa como [].
+	if _, existe := got["data"]; !existe {
+		t.Errorf("slice vacío debería serializar como [], no omitirse: %s", b)
+	}
+	arr, ok := got["data"].([]any)
+	if !ok {
+		t.Errorf("slice vacío debería ser array, fue: %T", got["data"])
+	}
+	if len(arr) != 0 {
+		t.Errorf("slice vacío debería tener longitud 0, fue: %d", len(arr))
+	}
+}
