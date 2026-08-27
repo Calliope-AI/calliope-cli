@@ -2,6 +2,7 @@ package config
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 )
@@ -79,11 +80,11 @@ func readLayerFile(src Source, ruta string) (*Layer, error) {
 		return nil, nil
 	}
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error al leer configuración de %s (%s): %w", src, ruta, err)
 	}
 	var vals map[string]string
 	if err := json.Unmarshal(b, &vals); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error al descodificar configuración de %s (%s): %w", src, ruta, err)
 	}
 	return &Layer{Source: src, Path: ruta, Values: vals}, nil
 }
