@@ -59,6 +59,8 @@ func Load(cwd string, env func(string) string, flags map[string]string) (*Config
 
 	capas = append(capas, Layer{Source: SourceFlag, Values: flags})
 
+	// Los avisos se devuelven en vez de imprimirse aquí: quien decide dónde
+	// escribirlos es appctx, que conoce el stderr del comando.
 	return Resolve(capas), avisos, nil
 }
 
