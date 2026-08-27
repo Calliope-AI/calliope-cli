@@ -6,11 +6,12 @@ import (
 	"os"
 
 	"github.com/calliope/calliope-cli/internal/cli"
+	"github.com/calliope/calliope-cli/internal/output"
 )
 
 func main() {
 	if err := cli.NewRootCmd().Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1) // Task 2 sustituye esto por el mapeo real de códigos.
+		os.Exit(output.ExitCodeFor(err))
 	}
 }
