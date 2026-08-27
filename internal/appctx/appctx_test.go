@@ -3,6 +3,7 @@ package appctx
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -43,6 +44,27 @@ func testDeps(t *testing.T, cwd string) (Deps, *bytes.Buffer) {
 		Stdout: &bytes.Buffer{},
 		Stderr: &stderr,
 	}, &stderr
+}
+
+// testDepsWithoutCredential monta unas Deps sin ninguna credencial disponible:
+// ni variables de entorno (CALLIOPE_API_KEY, CALLIOPE_TOKEN) ni almacén con
+// nada guardado. Es el reverso de testDeps, que siempre deja una credencial
+// válida y por eso nunca ejercita el camino en el que Build debe fallar.
+func testDepsWithoutCredential(t *testing.T, cwd string) Deps {
+	t.Helper()
+	home := t.TempDir() // fuera del closure: si no, cada llamada crearía otro
+	return Deps{
+		Cwd: cwd,
+		Env: func(k string) string {
+			if k == "HOME" {
+				return home
+			}
+			return ""
+		},
+		Store:  auth.NewFileStore(filepath.Join(t.TempDir(), "vacio.json")),
+		Stdout: &bytes.Buffer{},
+		Stderr: &bytes.Buffer{},
+	}
 }
 
 func writeProjectConfig(t *testing.T, dir string, vals map[string]string) {
@@ -152,5 +174,26 @@ func TestBuildSinCredencialNoFallaSinAutenticacion(t *testing.T) {
 	}
 	if ctx.Cred.Valid() {
 		t.Error("no debería haber credencial")
+	}
+}
+
+func TestBuildExigeCredencialYElErrorTraeCodigoYHint(t *testing.T) {
+	dir := t.TempDir()
+	writeProjectConfig(t, dir, map[string]string{"org": "acme"})
+	deps := testDepsWithoutCredential(t, dir)
+
+	_, err := Build(commandWithFlags(nil), deps)
+	if err == nil {
+		t.Fatal("se esperaba error al no haber credencial")
+	}
+	if got := output.ExitCodeFor(err); got != 3 {
+		t.Errorf("código de salida = %d, se esperaba 3 (no autorizado)", got)
+	}
+	var cliErr *output.CLIError
+	if !errors.As(err, &cliErr) {
+		t.Fatalf("el error debería ser un *output.CLIError, fue %T", err)
+	}
+	if cliErr.Hint == "" {
+		t.Error("el error debería traer un hint con la acción de recuperación")
 	}
 }
