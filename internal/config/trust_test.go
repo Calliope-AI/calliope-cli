@@ -111,6 +111,60 @@ func TestLaConfiguracionDeProyectoNuncaAportaCredenciales(t *testing.T) {
 	}
 }
 
+// TestLaConfiguracionDeProyectoSiPuedeFijarOutput cubre el camino positivo de
+// la segunda clave permitida: hasta ahora solo se ejercitaba "org", y una
+// frontera que solo se prueba con una de las dos claves permitidas podría
+// tener la otra rota (o, tras el endurecimiento, apuntar por error a una
+// clave inexistente en projectAllowed) sin que ningún test lo notara.
+func TestLaConfiguracionDeProyectoSiPuedeFijarOutput(t *testing.T) {
+	dir := t.TempDir()
+	writeProjectConfig(t, dir, map[string]string{"output": "json"})
+
+	cfg, avisos, err := Load(dir, testEnv(t.TempDir()), nil)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if got := cfg.Output(); got != "json" {
+		t.Errorf("Output = %q, la configuración de proyecto sí puede fijar output", got)
+	}
+	if got := cfg.Get(KeyOutput).Source; got != SourceProject {
+		t.Errorf("origen de output = %q, se esperaba project", got)
+	}
+	if len(avisos) != 0 {
+		t.Errorf("no se esperaban avisos, output es una clave permitida: %v", avisos)
+	}
+}
+
+// TestProjectAllowedEsExactamenteOrgYOutput fija el contenido del conjunto
+// permitido. Ampliarlo (por ejemplo añadiendo base_url o timeout) rompe este
+// test a propósito, para que una ampliación silenciosa de la frontera de
+// confianza sea visible en la revisión de código en vez de colarse como
+// efecto colateral de otro cambio.
+func TestProjectAllowedEsExactamenteOrgYOutput(t *testing.T) {
+	permitidas := map[string]bool{
+		KeyOrg:    true,
+		KeyOutput: true,
+	}
+	todasLasClaves := []string{KeyOrg, KeyBaseURL, KeyOutput, KeyTimeout}
+
+	for _, k := range todasLasClaves {
+		got := IsProjectAllowed(k)
+		want := permitidas[k]
+		if got != want {
+			t.Errorf("IsProjectAllowed(%q) = %v, se esperaba %v", k, got, want)
+		}
+	}
+
+	// Claves que ni siquiera están en el catálogo de config.go: nunca deben
+	// colarse por accidente (p. ej. por un typo que casualmente exista en el
+	// mapa).
+	for _, k := range []string{"api_key", "token", "proxy", ""} {
+		if IsProjectAllowed(k) {
+			t.Errorf("IsProjectAllowed(%q) = true, ninguna clave fuera de org/output debe estar permitida", k)
+		}
+	}
+}
+
 // --- ayudantes ---
 
 func writeProjectConfig(t *testing.T, dir string, vals map[string]string) {
