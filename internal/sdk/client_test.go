@@ -42,9 +42,28 @@ func TestLaRutaLlevaElScopeDeOrganizacion(t *testing.T) {
 func TestElNombreDeOrganizacionSeEscapa(t *testing.T) {
 	c, _ := testClient(t, func(w http.ResponseWriter, r *http.Request) { w.Write([]byte(`{}`)) })
 
-	got := c.OrgPath("acme corp/../otra", "/rules")
-	if strings.Contains(got, "..") || strings.Contains(got, " ") {
-		t.Errorf("OrgPath = %q — el nombre de organización debe ir escapado", got)
+	// La propiedad que importa no es sintáctica (que no aparezca "..") sino
+	// estructural: el nombre de organización no debe introducir ninguna
+	// barra sin escapar, porque es la barra sin escapar la que delimita
+	// segmentos de URL (RFC 3986). Si org no aporta barras propias, el
+	// número total de barras en la ruta resultante es exactamente el de la
+	// plantilla fija más el del suffix.
+	plantilla := "/v1/organizations/"
+	suffix := "/rules"
+	esperadas := strings.Count(plantilla, "/") + strings.Count(suffix, "/")
+
+	got := c.OrgPath("acme corp/../otra", suffix)
+	if n := strings.Count(got, "/"); n != esperadas {
+		t.Errorf("OrgPath = %q — el nombre de organización introduce una barra sin escapar (%d barras, se esperaban %d)", got, n, esperadas)
+	}
+}
+
+func TestElNombreDeOrganizacionConPuntoNoSeAltera(t *testing.T) {
+	c, _ := testClient(t, func(w http.ResponseWriter, r *http.Request) { w.Write([]byte(`{}`)) })
+
+	got := c.OrgPath("acme.corp", "/rules")
+	if got != "/v1/organizations/acme.corp/rules" {
+		t.Errorf("OrgPath = %q, se esperaba /v1/organizations/acme.corp/rules — el punto es válido en un segmento y no debe escaparse", got)
 	}
 }
 
@@ -61,6 +80,35 @@ func TestSeEnviaLaCabeceraDeAutenticacion(t *testing.T) {
 	}
 	if visto != "cal_live_test" {
 		t.Errorf("X-API-Key = %q", visto)
+	}
+}
+
+func TestContentTypeSoloSeFijaConCuerpo(t *testing.T) {
+	var vistoSinCuerpo, vistoConCuerpo string
+	conCuerpo := false
+	c, _ := testClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if conCuerpo {
+			vistoConCuerpo = r.Header.Get("Content-Type")
+		} else {
+			vistoSinCuerpo = r.Header.Get("Content-Type")
+		}
+		w.Write([]byte(`{}`))
+	})
+
+	var out map[string]any
+	if err := c.Do(context.Background(), http.MethodGet, "/x", nil, &out); err != nil {
+		t.Fatalf("Do sin cuerpo: %v", err)
+	}
+	if vistoSinCuerpo != "" {
+		t.Errorf("Content-Type sin cuerpo = %q, se esperaba vacío", vistoSinCuerpo)
+	}
+
+	conCuerpo = true
+	if err := c.Do(context.Background(), http.MethodPost, "/x", map[string]string{"a": "b"}, &out); err != nil {
+		t.Fatalf("Do con cuerpo: %v", err)
+	}
+	if vistoConCuerpo != "application/json" {
+		t.Errorf("Content-Type con cuerpo = %q, se esperaba application/json", vistoConCuerpo)
 	}
 }
 

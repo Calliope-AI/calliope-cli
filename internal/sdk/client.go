@@ -57,16 +57,14 @@ func New(opts Options) *Client {
 	}
 }
 
-// OrgPath construye una ruta con el scope de organización. El nombre se escapa:
-// llega de configuración de proyecto, que es una entrada no confiable.
-//
-// url.PathEscape no toca el carácter ".", así que una secuencia como "../"
-// sobrevive como ".." literal en el resultado (las barras sí quedan
-// neutralizadas como %2F). Para que ".." no aparezca nunca en la ruta
-// final, el punto se escapa también a mano tras el PathEscape.
+// OrgPath construye una ruta con el scope de organización. El nombre se
+// escapa porque llega de configuración de proyecto, que es una entrada no
+// confiable: lo que neutraliza el path traversal es que "/" quede escapado
+// a "%2F" (RFC 3986: los segmentos de una URL se delimitan por barras sin
+// decodificar), de modo que el valor de org entero queda como un único
+// segmento opaco.
 func (c *Client) OrgPath(org, suffix string) string {
-	escapado := strings.ReplaceAll(url.PathEscape(org), ".", "%2E")
-	return "/v1/organizations/" + escapado + suffix
+	return "/v1/organizations/" + url.PathEscape(org) + suffix
 }
 
 // Do ejecuta una petición y decodifica la respuesta en out. Si out es nil, el
