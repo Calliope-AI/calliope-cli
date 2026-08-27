@@ -2,10 +2,13 @@ package auth
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 
 	"github.com/zalando/go-keyring"
+
+	"github.com/calliope/calliope-cli/internal/output"
 )
 
 const (
@@ -28,14 +31,27 @@ type fileStore struct{ path string }
 func NewFileStore(path string) Store { return &fileStore{path: path} }
 
 func (s *fileStore) Save(c Credential) error {
-	if err := os.MkdirAll(filepath.Dir(s.path), 0o700); err != nil {
+	dir := filepath.Dir(s.path)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return err
+	}
+	// os.MkdirAll solo aplica el modo al crear: si el directorio ya existía
+	// (p.ej. tras restaurar dotfiles o extraer un tar con umask laxo) se
+	// queda con los permisos que ya tuviera. Se refuerza explícitamente.
+	if err := os.Chmod(dir, 0o700); err != nil {
 		return err
 	}
 	b, err := json.Marshal(c)
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(s.path, b, 0o600)
+	if err := os.WriteFile(s.path, b, 0o600); err != nil {
+		return err
+	}
+	// Igual que con el directorio: si el fichero ya existía, os.WriteFile no
+	// toca sus permisos. Se refuerza para que la credencial no quede legible
+	// por otros usuarios del sistema.
+	return os.Chmod(s.path, 0o600)
 }
 
 func (s *fileStore) Load() (*Credential, error) {
@@ -48,7 +64,7 @@ func (s *fileStore) Load() (*Credential, error) {
 	}
 	var c Credential
 	if err := json.Unmarshal(b, &c); err != nil {
-		return nil, err
+		return nil, corruptCredentialError(err)
 	}
 	return &c, nil
 }
@@ -68,14 +84,22 @@ type keyringStore struct{ fallback Store }
 // NewKeyringStore crea un almacén sobre el llavero del sistema.
 func NewKeyringStore(fallback Store) Store { return &keyringStore{fallback: fallback} }
 
+// Save mantiene el invariante de que, como mucho, un almacén guarda la
+// credencial en cada momento: si el llavero la acepta, se borra el residuo
+// del respaldo (podría revivir una credencial vieja, quizá ya revocada); si
+// el llavero falla, se borra la posible entrada vieja del llavero antes de
+// caer al respaldo, para que Load no la sirva en vez de la recién guardada.
+// Los borrados son de mejor esfuerzo: que fallen no debe romper el Save.
 func (s *keyringStore) Save(c Credential) error {
 	b, err := json.Marshal(c)
 	if err != nil {
 		return err
 	}
 	if err := keyring.Set(keyringService, keyringUser, string(b)); err != nil {
+		_ = keyring.Delete(keyringService, keyringUser)
 		return s.fallback.Save(c)
 	}
+	_ = s.fallback.Delete()
 	return nil
 }
 
@@ -86,7 +110,7 @@ func (s *keyringStore) Load() (*Credential, error) {
 	}
 	var c Credential
 	if err := json.Unmarshal([]byte(crudo), &c); err != nil {
-		return nil, err
+		return nil, corruptCredentialError(err)
 	}
 	return &c, nil
 }
@@ -95,6 +119,16 @@ func (s *keyringStore) Delete() error {
 	// Se borra en ambos sitios: da igual dónde acabara al guardarse.
 	_ = keyring.Delete(keyringService, keyringUser)
 	return s.fallback.Delete()
+}
+
+// corruptCredentialError envuelve un fallo al descodificar una credencial
+// guardada (fichero o llavero) en un CLIError con mensaje y pista en
+// español. La causa técnica original no se descarta: sigue accesible vía
+// errors.As/errors.Is, para que un log o diagnóstico futuro pueda inspeccionarla.
+func corruptCredentialError(cause error) error {
+	return fmt.Errorf("%w: %w", output.NewError(output.CodeUnauthorized,
+		"La credencial guardada está dañada o en un formato inesperado.",
+		"Vuelve a autenticarte: calliope auth login --api-key <clave>"), cause)
 }
 
 // DefaultStore es el almacén que usa el CLI: llavero del sistema con respaldo

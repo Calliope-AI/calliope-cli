@@ -1,9 +1,13 @@
 package auth
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+
+	"github.com/calliope/calliope-cli/internal/output"
 )
 
 func TestFileStoreGuardaYRecupera(t *testing.T) {
@@ -62,5 +66,76 @@ func TestFileStoreDelete(t *testing.T) {
 	}
 	if c, _ := st.Load(); c != nil {
 		t.Error("tras Delete, Load debe devolver nil")
+	}
+}
+
+func TestFileStoreRefuerzaPermisosSobreFicheroYDirectorioExistentes(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "sub")
+	ruta := filepath.Join(dir, "credentials.json")
+
+	// El directorio y el fichero ya existen con permisos laxos, como tras
+	// restaurar dotfiles o extraer un tar con umask 022. os.MkdirAll y
+	// os.WriteFile solo aplican el modo al crear, así que sin refuerzo
+	// explícito estos permisos sobrevivirían al Save.
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(ruta, []byte(`{"kind":"api_key","token":"viejo"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	st := NewFileStore(ruta)
+	if err := st.Save(Credential{Kind: KindAPIKey, Token: "nuevo"}); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	fi, err := os.Stat(ruta)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if perm := fi.Mode().Perm(); perm != 0o600 {
+		t.Errorf("permisos del fichero = %o, se esperaba 600 tras Save sobre un fichero preexistente", perm)
+	}
+
+	di, err := os.Stat(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if perm := di.Mode().Perm(); perm != 0o700 {
+		t.Errorf("permisos del directorio = %o, se esperaba 700 tras Save sobre un directorio preexistente", perm)
+	}
+}
+
+func TestFileStoreLoadConJSONCorruptoDevuelveErrorAccionable(t *testing.T) {
+	ruta := filepath.Join(t.TempDir(), "credentials.json")
+	if err := os.WriteFile(ruta, []byte("{no es json"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	st := NewFileStore(ruta)
+	_, err := st.Load()
+	if err == nil {
+		t.Fatal("se esperaba un error con un fichero de credenciales corrupto")
+	}
+
+	if got := output.ExitCodeFor(err); got != 3 {
+		t.Errorf("código de salida = %d, se esperaba 3 (no autorizado)", got)
+	}
+
+	var cliErr *output.CLIError
+	if !errors.As(err, &cliErr) {
+		t.Fatal("se esperaba poder extraer un *output.CLIError")
+	}
+	if cliErr.Hint == "" {
+		t.Error("el error debe decir cómo recuperarse (volver a autenticarse)")
+	}
+	if strings.ContainsAny(cliErr.Message, "{}") {
+		t.Errorf("el mensaje de cara al usuario no debe filtrar detalle crudo de JSON: %q", cliErr.Message)
+	}
+
+	// La causa técnica original no se descarta: sigue accesible en la cadena
+	// de errores para diagnóstico, aunque el usuario solo vea cliErr.Message.
+	if !strings.Contains(err.Error(), "invalid character") {
+		t.Errorf("se esperaba conservar la causa original en la cadena de errores: %v", err)
 	}
 }

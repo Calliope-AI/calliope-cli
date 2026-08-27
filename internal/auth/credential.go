@@ -3,6 +3,8 @@
 // una tercera no toque el código de los comandos.
 package auth
 
+import "fmt"
+
 // Kind distingue las formas de credencial soportadas.
 type Kind string
 
@@ -29,3 +31,14 @@ func (c Credential) Header() (string, string) {
 
 // Valid indica si la credencial se puede usar.
 func (c Credential) Valid() bool { return c.Token != "" }
+
+// String implementa fmt.Stringer y redacta el token. Así, un
+// fmt.Errorf("...: %v", cred) o un log.Printf descuidados en tareas futuras
+// no filtran el secreto.
+func (c Credential) String() string {
+	redactado := "<vacío>"
+	if c.Token != "" {
+		redactado = "***"
+	}
+	return fmt.Sprintf("Credential{Kind: %s, Token: %s, Org: %q}", c.Kind, redactado, c.Org)
+}
