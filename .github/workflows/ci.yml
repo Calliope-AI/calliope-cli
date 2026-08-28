@@ -9,4 +9,7 @@ jobs:
         with:
           go-version: '1.25'
       - run: go vet ./...
+      # Sin -tags=e2e, esto excluye test/e2e (etiqueta `//go:build e2e`): el
+      # smoke habla con una organización real y va aparte, opt-in con
+      # CALLIOPE_E2E=1 (ver README.md, sección Desarrollo).
       - run: go test ./... -race
