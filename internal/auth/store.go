@@ -30,28 +30,36 @@ type fileStore struct{ path string }
 // NewFileStore crea un almacén respaldado por fichero.
 func NewFileStore(path string) Store { return &fileStore{path: path} }
 
+// ioErrorHint es el hint común de los errores de E/S de este almacén: quien
+// lo lee puede cambiar dónde vive el fichero de credenciales sin tocar
+// permisos del sistema.
+const ioErrorHint = "Comprueba los permisos de escritura en tu directorio de configuración, o cambia su ubicación con la variable de entorno XDG_CONFIG_HOME."
+
 func (s *fileStore) Save(c Credential) error {
 	dir := filepath.Dir(s.path)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return err
+		return output.WrapIOError("No se pudo crear el directorio de configuración.", ioErrorHint, err)
 	}
 	// os.MkdirAll solo aplica el modo al crear: si el directorio ya existía
 	// (p.ej. tras restaurar dotfiles o extraer un tar con umask laxo) se
 	// queda con los permisos que ya tuviera. Se refuerza explícitamente.
 	if err := os.Chmod(dir, 0o700); err != nil {
-		return err
+		return output.WrapIOError("No se pudo ajustar los permisos del directorio de configuración.", ioErrorHint, err)
 	}
 	b, err := json.Marshal(c)
 	if err != nil {
 		return err
 	}
 	if err := os.WriteFile(s.path, b, 0o600); err != nil {
-		return err
+		return output.WrapIOError("No se pudo guardar la credencial.", ioErrorHint, err)
 	}
 	// Igual que con el directorio: si el fichero ya existía, os.WriteFile no
 	// toca sus permisos. Se refuerza para que la credencial no quede legible
 	// por otros usuarios del sistema.
-	return os.Chmod(s.path, 0o600)
+	if err := os.Chmod(s.path, 0o600); err != nil {
+		return output.WrapIOError("No se pudo ajustar los permisos de la credencial guardada.", ioErrorHint, err)
+	}
+	return nil
 }
 
 func (s *fileStore) Load() (*Credential, error) {
@@ -74,7 +82,10 @@ func (s *fileStore) Delete() error {
 	if os.IsNotExist(err) {
 		return nil
 	}
-	return err
+	if err != nil {
+		return output.WrapIOError("No se pudo borrar la credencial guardada.", ioErrorHint, err)
+	}
+	return nil
 }
 
 // keyringStore usa el llavero del sistema y cae al respaldo cuando no hay

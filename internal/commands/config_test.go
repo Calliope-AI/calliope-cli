@@ -2,6 +2,7 @@ package commands
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -9,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/calliope/calliope-cli/internal/config"
+	"github.com/calliope/calliope-cli/internal/output"
 )
 
 func TestConfigListMuestraLaProcedencia(t *testing.T) {
@@ -76,6 +78,43 @@ func TestConfigSetEscribeUnaClavePermitida(t *testing.T) {
 
 	if fi, err := os.Stat(ruta); err != nil || fi.Mode().Perm() != 0o600 {
 		t.Errorf("permisos del fichero de proyecto = %v (err=%v), se esperaba 0600", fi.Mode().Perm(), err)
+	}
+}
+
+// TestConfigSetSinPermisosDeEscrituraEsCLIError es el test del Diferido #10
+// de la oleada final: en un directorio de proyecto sin permisos de
+// escritura, `config set` devolvía el error crudo de os.MkdirAll -en
+// inglés, sin hint, y con la ruta absoluta del sistema de ficheros del
+// cliente incluida en el mensaje-.
+func TestConfigSetSinPermisosDeEscrituraEsCLIError(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.Chmod(dir, 0o500); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chmod(dir, 0o755) })
+
+	d, stdout, _ := depsWithServer(t, func(w http.ResponseWriter, r *http.Request) {})
+	d.Cwd = dir
+
+	root := testRoot(NewConfigCmd(d), stdout)
+	root.SetArgs([]string{"config", "set", "org", "acme"})
+	err := root.Execute()
+	if err == nil {
+		t.Fatal("se esperaba un error de E/S")
+	}
+
+	var cliErr *output.CLIError
+	if !errors.As(err, &cliErr) {
+		t.Fatalf("el error debería ser un *output.CLIError, fue %T (%v)", err, err)
+	}
+	if cliErr.Hint == "" {
+		t.Error("el error debería traer un hint")
+	}
+	if strings.Contains(cliErr.Message, dir) {
+		t.Errorf("el mensaje filtra la ruta absoluta del sistema: %q", cliErr.Message)
+	}
+	if strings.Contains(cliErr.Message, "permission denied") {
+		t.Errorf("el mensaje no debe ser el de Go en inglés: %q", cliErr.Message)
 	}
 }
 

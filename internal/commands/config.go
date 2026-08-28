@@ -121,7 +121,8 @@ func newConfigSetCmd(d appctx.Deps) *cobra.Command {
 
 			dir := filepath.Dir(ruta)
 			if err := os.MkdirAll(dir, dirMode); err != nil {
-				return err
+				return output.WrapIOError("No se pudo crear el directorio de configuración.",
+					configIOHint(global), err)
 			}
 			if global {
 				// Igual que auth/store.go: os.MkdirAll solo aplica el modo al
@@ -130,7 +131,8 @@ func newConfigSetCmd(d appctx.Deps) *cobra.Command {
 				// permisos que ya tuviera. Se refuerza explícitamente para que
 				// no quede listable por otros usuarios del sistema.
 				if err := os.Chmod(dir, 0o700); err != nil {
-					return err
+					return output.WrapIOError("No se pudo ajustar los permisos del directorio de configuración.",
+						configIOHint(global), err)
 				}
 			}
 			vals := map[string]string{}
@@ -144,7 +146,7 @@ func newConfigSetCmd(d appctx.Deps) *cobra.Command {
 				return err
 			}
 			if err := os.WriteFile(ruta, b, 0o600); err != nil {
-				return err
+				return output.WrapIOError("No se pudo guardar la configuración.", configIOHint(global), err)
 			}
 			fmt.Fprintf(cmd.OutOrStdout(), "%s = %s (%s)\n", clave, valor, ruta)
 			return nil
@@ -152,6 +154,16 @@ func newConfigSetCmd(d appctx.Deps) *cobra.Command {
 	}
 	cmd.Flags().BoolVar(&global, "global", false, "escribe en la configuración global en vez de la del proyecto")
 	return cmd
+}
+
+// configIOHint da el hint del error de E/S de `config set` según se esté
+// escribiendo la configuración global o la de proyecto (Diferido #10 de la
+// oleada final): el sitio a comprobar es distinto en cada caso.
+func configIOHint(global bool) string {
+	if global {
+		return "Comprueba los permisos de escritura en tu directorio de configuración, o cambia su ubicación con la variable de entorno XDG_CONFIG_HOME."
+	}
+	return "Comprueba los permisos de escritura en el directorio actual."
 }
 
 func newConfigPathCmd(d appctx.Deps) *cobra.Command {

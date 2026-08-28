@@ -153,6 +153,48 @@ func TestOrgsListRespetaCalliopeTimeout(t *testing.T) {
 	}
 }
 
+// TestOrgsUseSinPermisosDeEscrituraEsCLIError es el test del Diferido #10
+// de la oleada final: en un directorio sin permisos de escritura, `orgs use`
+// devolvía el error crudo de os.MkdirAll -en inglés, sin hint, y con la ruta
+// absoluta del sistema de ficheros del cliente incluida en el mensaje (p.
+// ej. "mkdir /Users/alguien/proyecto/.calliope: permission denied")-.
+func TestOrgsUseSinPermisosDeEscrituraEsCLIError(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.Chmod(dir, 0o500); err != nil {
+		t.Fatal(err)
+	}
+	// TempDir necesita poder borrar dir al terminar el test; se restaura el
+	// permiso de escritura antes de que el cleanup de t.TempDir() lo intente.
+	t.Cleanup(func() { os.Chmod(dir, 0o755) })
+
+	d, stdout, st := depsWithServer(t, func(w http.ResponseWriter, r *http.Request) {})
+	d.Cwd = dir
+	if err := st.Save(auth.Credential{Kind: auth.KindAPIKey, Token: "k"}); err != nil {
+		t.Fatal(err)
+	}
+
+	root := testRoot(NewOrgsCmd(d), stdout)
+	root.SetArgs([]string{"orgs", "use", "acme"})
+	err := root.Execute()
+	if err == nil {
+		t.Fatal("se esperaba un error de E/S")
+	}
+
+	var cliErr *output.CLIError
+	if !errors.As(err, &cliErr) {
+		t.Fatalf("el error debería ser un *output.CLIError, fue %T (%v)", err, err)
+	}
+	if cliErr.Hint == "" {
+		t.Error("el error debería traer un hint")
+	}
+	if strings.Contains(cliErr.Message, dir) {
+		t.Errorf("el mensaje filtra la ruta absoluta del sistema: %q", cliErr.Message)
+	}
+	if strings.Contains(cliErr.Message, "permission denied") {
+		t.Errorf("el mensaje no debe ser el de Go en inglés: %q", cliErr.Message)
+	}
+}
+
 func TestOrgsUseEscribeLaConfiguracionDeProyecto(t *testing.T) {
 	d, stdout, st := depsWithServer(t, func(w http.ResponseWriter, r *http.Request) {})
 	if err := st.Save(auth.Credential{Kind: auth.KindAPIKey, Token: "k"}); err != nil {

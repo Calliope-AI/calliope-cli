@@ -61,6 +61,27 @@ func (e *CLIError) Envelope() Envelope {
 	}
 }
 
+// WrapIOError envuelve un error de E/S del sistema de ficheros (permisos,
+// disco lleno, ruta inexistente...) en un CLIError con mensaje y pista en
+// español (Diferido #10 de la oleada final). El error de Go para estos
+// casos -p. ej. "mkdir /Users/alguien/proyecto/.calliope: permission
+// denied"- va en inglés y lleva la ruta absoluta del sistema de ficheros de
+// quien ejecuta el CLI: expone estructura del filesystem del cliente, y con
+// --json iría derecho al contexto de un agente.
+//
+// El error técnico original no se descarta -sigue accesible vía
+// errors.As/errors.Is sobre el valor devuelto, sea cual sea el llamador que
+// necesite inspeccionarlo-, solo no sale en el mensaje que ve el usuario.
+// Mismo criterio que corruptCredentialError en internal/auth/store.go, que
+// resolvió el mismo problema para los errores de credencial dañada antes
+// de que esta tarea generalizara el patrón.
+func WrapIOError(message, hint string, cause error) error {
+	if cause == nil {
+		return nil
+	}
+	return fmt.Errorf("%w: %w", NewError(CodeGeneric, message, hint), cause)
+}
+
 // ExitCodeFor devuelve el código de salida de cualquier error, desenvolviendo
 // las cadenas creadas con %w.
 func ExitCodeFor(err error) int {

@@ -73,7 +73,8 @@ func newOrgsUseCmd(d appctx.Deps) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			dir := filepath.Join(d.Cwd, ".calliope")
 			if err := os.MkdirAll(dir, 0o755); err != nil {
-				return err
+				return output.WrapIOError("No se pudo crear el directorio .calliope del proyecto.",
+					"Comprueba los permisos de escritura en el directorio actual.", err)
 			}
 			ruta := filepath.Join(dir, config.FileName)
 
@@ -89,7 +90,8 @@ func newOrgsUseCmd(d appctx.Deps) *cobra.Command {
 				return err
 			}
 			if err := os.WriteFile(ruta, b, 0o600); err != nil {
-				return err
+				return output.WrapIOError("No se pudo guardar la organización activa.",
+					"Comprueba los permisos de escritura en el directorio actual.", err)
 			}
 			fmt.Fprintf(cmd.OutOrStdout(), "Organización activa: %s (%s)\n", args[0], ruta)
 			return nil
