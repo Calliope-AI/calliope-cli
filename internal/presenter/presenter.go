@@ -29,6 +29,25 @@ type Options struct {
 	Out    io.Writer
 }
 
+// IsMachineReadable indica si esta invocación pidió -explícita, con un
+// flag o la configuración, o implícitamente, por no ser un terminal
+// interactivo- un formato pensado para que lo lea un programa, no una
+// persona sentada en su terminal. Solo el modo automático en un terminal
+// interactivo NO lo es.
+//
+// main() la usa para decidir cómo sacar un ERROR: como el mismo envelope
+// JSON que ya promete el SKILL.md para el éxito, o como texto plano. Antes
+// esa decisión se resolvía aparte, con un escaneo de os.Args en busca del
+// token literal "--json" -desconectado de este Options, que ya resuelve
+// Build/BuildWithoutCredential para el éxito-, así que en tubería, con
+// --jq, --quiet, --md, --json=true o CALLIOPE_OUTPUT=json el éxito salía en
+// JSON y el error salía en texto plano (C2 de la oleada final). Vive aquí,
+// como método de Options, para que no haya una segunda copia de la fórmula
+// que pueda desincronizarse otra vez.
+func (o Options) IsMachineReadable() bool {
+	return o.Mode != ModeAuto || !o.IsTTY
+}
+
 // Result es lo que produce un comando: el envelope, más los renders humanos
 // opcionales. Si Text o Markdown son nil, se cae a JSON.
 type Result struct {

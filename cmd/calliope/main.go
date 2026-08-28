@@ -3,7 +3,6 @@ package main
 
 import (
 	"os"
-	"slices"
 
 	"github.com/calliope/calliope-cli/internal/appctx"
 	"github.com/calliope/calliope-cli/internal/cli"
@@ -11,9 +10,19 @@ import (
 )
 
 func main() {
-	if err := cli.NewRootCmd(appctx.DefaultDeps()).Execute(); err != nil {
-		isJSON := slices.Contains(os.Args, "--json")
-		output.WriteError(os.Stderr, err, isJSON)
+	d := appctx.DefaultDeps()
+
+	// ExecuteC (no Execute) devuelve el *cobra.Command que de verdad se
+	// ejecutó -con sus flags ya fusionados y parseados, incluso si la
+	// ejecución falló después-, para poder resolver el modo de salida del
+	// error con la misma función que usa el resto del CLI para el éxito:
+	// appctx.ResolveOutputMode. Antes se adivinaba con
+	// slices.Contains(os.Args, "--json"), desconectado de esa resolución
+	// (C2 de la oleada final).
+	executed, err := cli.ExecuteRoot(d)
+	if err != nil {
+		opts := appctx.ResolveOutputMode(executed, d)
+		output.WriteError(d.Stderr, err, opts.IsMachineReadable())
 		os.Exit(output.ExitCodeFor(err))
 	}
 }

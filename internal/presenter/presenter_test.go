@@ -110,6 +110,33 @@ func TestSinRenderMarkdownCaeAJSON(t *testing.T) {
 	}
 }
 
+// TestIsMachineReadable cubre la tabla de decisión que usa main() para
+// decidir cómo sacar un ERROR (C2 de la oleada final): solo el modo
+// automático en un terminal interactivo es "para una persona"; los otros
+// cinco modos de la tabla 6.2 -y el automático en tubería- son "para un
+// programa".
+func TestIsMachineReadable(t *testing.T) {
+	casos := []struct {
+		nombre string
+		opts   Options
+		quiero bool
+	}{
+		{"auto + tty", Options{Mode: ModeAuto, IsTTY: true}, false},
+		{"auto + tubería", Options{Mode: ModeAuto, IsTTY: false}, true},
+		{"json + tty", Options{Mode: ModeJSON, IsTTY: true}, true},
+		{"quiet + tty", Options{Mode: ModeQuiet, IsTTY: true}, true},
+		{"md + tty", Options{Mode: ModeMarkdown, IsTTY: true}, true},
+		{"jq + tty", Options{Mode: ModeJQ, IsTTY: true}, true},
+	}
+	for _, c := range casos {
+		t.Run(c.nombre, func(t *testing.T) {
+			if got := c.opts.IsMachineReadable(); got != c.quiero {
+				t.Errorf("IsMachineReadable() = %v, se esperaba %v", got, c.quiero)
+			}
+		})
+	}
+}
+
 // TestRenderJSONNoEscapaHTML comprueba que un hint con "<" y ">" (por
 // ejemplo, el placeholder de un argumento: "calliope orgs use
 // <organización>") sale literal en modo --json, no como </>. Sigue

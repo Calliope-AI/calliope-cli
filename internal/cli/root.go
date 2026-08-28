@@ -42,6 +42,15 @@ func NewRootCmd(d appctx.Deps) *cobra.Command {
 	return root
 }
 
+// ExecuteRoot construye la raíz y la ejecuta. Devuelve el *cobra.Command que
+// de verdad se ejecutó -con sus flags ya fusionados y parseados, incluso si
+// la ejecución acaba en error-, para que main() pueda resolver el modo de
+// salida de un error con appctx.ResolveOutputMode, exactamente igual que
+// resolvería el de un éxito (C2 de la oleada final).
+func ExecuteRoot(d appctx.Deps) (*cobra.Command, error) {
+	return NewRootCmd(d).ExecuteC()
+}
+
 func newVersionCmd(d appctx.Deps) *cobra.Command {
 	return &cobra.Command{
 		Use:   "version",

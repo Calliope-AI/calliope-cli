@@ -137,9 +137,44 @@ func BuildSinCredencial(cmd *cobra.Command, d Deps) (*Context, error) {
 	return &Context{
 		Cfg:     cfg,
 		Org:     cfg.Org(),
-		Present: outputMode(cmd, cfg, d),
+		Present: OutputMode(cmd, cfg, d),
 		Deps:    d,
 	}, nil
+}
+
+// ResolveOutputMode resuelve el modo de salida de esta invocación con la
+// misma lógica que usan Build y BuildWithoutCredential -flags, configuración
+// y TTY, en ese orden-, para que main() pueda decidir cómo mostrar un ERROR
+// exactamente igual que decide cómo mostrar un éxito. cmd es el
+// *cobra.Command que devuelve root.ExecuteC(): el que de verdad se ejecutó,
+// con sus flags ya fusionados y parseados (incluso si la propia ejecución
+// falló después).
+//
+// Antes, main comprobaba con slices.Contains(os.Args, "--json"),
+// desconectado de esta resolución: en tubería, con --jq, --quiet, --md,
+// --json=true o CALLIOPE_OUTPUT=json el éxito salía en JSON pero el error
+// salía en texto plano, así que la promesa del SKILL.md de que los fallos
+// salen como envelope solo era cierta si el token literal "--json" estaba en
+// la línea de comandos (C2 de la oleada final).
+//
+// Si la configuración no carga (p. ej. un config.json corrupto es
+// precisamente el tipo de fallo que estamos informando), se usa una
+// configuración vacía en su lugar en vez de propagar ese error: esta
+// función solo decide el FORMATO del error que ya se está informando, nunca
+// debe fallar por su cuenta. Los avisos de config.Load se descartan a
+// propósito: si la invocación llegó a construir un *Context antes de
+// fallar, ya los habrá impreso una vez; imprimirlos aquí también los
+// duplicaría en stderr.
+func ResolveOutputMode(cmd *cobra.Command, d Deps) presenter.Options {
+	flags := map[string]string{}
+	if v, _ := cmd.Flags().GetString("org"); v != "" {
+		flags[config.KeyOrg] = v
+	}
+	cfg, _, err := config.Load(d.Cwd, d.Env, flags)
+	if err != nil {
+		cfg = &config.Config{}
+	}
+	return OutputMode(cmd, cfg, d)
 }
 
 // Render escribe un resultado con el modo de salida de esta invocación.
@@ -147,7 +182,12 @@ func (c *Context) Render(r presenter.Result) error {
 	return presenter.Render(r, c.Present)
 }
 
-func outputMode(cmd *cobra.Command, cfg *config.Config, d Deps) presenter.Options {
+// OutputMode resuelve el modo de salida de una invocación: la configuración
+// puede fijar un modo por defecto, y los flags de la invocación mandan sobre
+// ella. Exportada para que main() pueda resolver el modo de un ERROR con la
+// misma función exacta que usan Build y BuildWithoutCredential para el éxito
+// (ver ResolveOutputMode, más arriba).
+func OutputMode(cmd *cobra.Command, cfg *config.Config, d Deps) presenter.Options {
 	opts := presenter.Options{Mode: presenter.ModeAuto, IsTTY: d.IsTTY, Out: d.Stdout}
 
 	// El fichero de configuración puede fijar el modo por defecto; los flags

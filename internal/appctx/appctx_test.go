@@ -13,6 +13,7 @@ import (
 
 	"github.com/calliope/calliope-cli/internal/auth"
 	"github.com/calliope/calliope-cli/internal/output"
+	"github.com/calliope/calliope-cli/internal/presenter"
 	"github.com/calliope/calliope-cli/internal/version"
 )
 
@@ -196,6 +197,80 @@ func TestBuildExigeCredencialYElErrorTraeCodigoYHint(t *testing.T) {
 	}
 	if cliErr.Hint == "" {
 		t.Error("el error debería traer un hint con la acción de recuperación")
+	}
+}
+
+// TestResolveOutputModeCubreLosSeisModos es el test de C2 de la oleada
+// final: antes, main() decidía si un ERROR salía en JSON escaneando
+// os.Args en busca del token literal "--json", desconectado de esta
+// resolución. En tubería, con --jq, --quiet, --md, --json=true o
+// CALLIOPE_OUTPUT=json el éxito salía en JSON pero el error salía en
+// texto plano. Ahora ResolveOutputMode es la misma función que usan
+// Build/BuildWithoutCredential para el éxito, así que IsMachineReadable()
+// tiene que dar el mismo resultado para los seis modos de la tabla 6.2 del
+// spec (más CALLIOPE_OUTPUT=json, otra vía hacia el mismo modo --json).
+func TestResolveOutputModeCubreLosSeisModos(t *testing.T) {
+	dir := t.TempDir()
+	writeProjectConfig(t, dir, map[string]string{"org": "acme"})
+
+	casos := []struct {
+		nombre        string
+		flags         map[string]string
+		env           map[string]string
+		isTTY         bool
+		quiereMachine bool
+	}{
+		{nombre: "por defecto, TTY", isTTY: true, quiereMachine: false},
+		{nombre: "por defecto, tubería", isTTY: false, quiereMachine: true},
+		{nombre: "--json", flags: map[string]string{"json": "true"}, isTTY: true, quiereMachine: true},
+		{nombre: "--quiet", flags: map[string]string{"quiet": "true"}, isTTY: true, quiereMachine: true},
+		{nombre: "--md", flags: map[string]string{"md": "true"}, isTTY: true, quiereMachine: true},
+		{nombre: "--jq", flags: map[string]string{"jq": ".data"}, isTTY: true, quiereMachine: true},
+		{nombre: "CALLIOPE_OUTPUT=json", env: map[string]string{"CALLIOPE_OUTPUT": "json"}, isTTY: true, quiereMachine: true},
+	}
+
+	for _, caso := range casos {
+		t.Run(caso.nombre, func(t *testing.T) {
+			deps, _ := testDeps(t, dir)
+			deps.IsTTY = caso.isTTY
+			if caso.env != nil {
+				base := deps.Env
+				deps.Env = func(k string) string {
+					if v, ok := caso.env[k]; ok {
+						return v
+					}
+					return base(k)
+				}
+			}
+
+			opts := ResolveOutputMode(commandWithFlags(caso.flags), deps)
+			if got := opts.IsMachineReadable(); got != caso.quiereMachine {
+				t.Errorf("IsMachineReadable() = %v, se esperaba %v (Mode=%q IsTTY=%v)",
+					got, caso.quiereMachine, opts.Mode, opts.IsTTY)
+			}
+		})
+	}
+}
+
+// TestResolveOutputModeConConfiguracionRotaNoFalla comprueba el segundo
+// invariante de C2: si config.Load falla (p. ej. un config.json corrupto,
+// que es precisamente el tipo de fallo que main() podría estar informando
+// en ese momento), ResolveOutputMode no debe propagar ese error -solo
+// decide el FORMATO del error que ya se está informando- y debe seguir
+// resolviendo el modo a partir de los flags de la invocación.
+func TestResolveOutputModeConConfiguracionRotaNoFalla(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, ".calliope"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, ".calliope", "config.json"), []byte("{no es json"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	deps, _ := testDeps(t, dir)
+
+	opts := ResolveOutputMode(commandWithFlags(map[string]string{"json": "true"}), deps)
+	if opts.Mode != presenter.ModeJSON {
+		t.Errorf("Mode = %q, se esperaba json incluso con configuración rota", opts.Mode)
 	}
 }
 
