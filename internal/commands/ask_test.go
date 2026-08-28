@@ -146,8 +146,14 @@ func TestAskEnTextoCitaLasFuentes(t *testing.T) {
 }
 
 // TestAskConRespuestaSinExitoDevuelveError comprueba que un `success:false`
-// del backend se traduce en un error de CLI con el mensaje del backend y el
-// hint de recuperación, no en una respuesta "correcta" vacía.
+// del backend se traduce en un error de CLI con un mensaje fijo en español y
+// el hint de recuperación, no en una respuesta "correcta" vacía.
+//
+// El mensaje es fijo -no el resp.Error del backend- a propósito (C1 de la
+// oleada final): antes se reenviaba *resp.Error verbatim, y ese campo es
+// cuerpo de respuesta del backend tanto como el de un 4xx, así que podía
+// sacar nombres de tabla internos, hostnames o puertos por el stdout de un
+// CLI que corre en la máquina del cliente.
 func TestAskConRespuestaSinExitoDevuelveError(t *testing.T) {
 	d, stdout, st := depsWithServer(t, func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`{"success":false,"error":"La pregunta es ambigua."}`))
@@ -167,14 +173,48 @@ func TestAskConRespuestaSinExitoDevuelveError(t *testing.T) {
 	if !errors.As(err, &cliErr) {
 		t.Fatalf("el error debería ser un *output.CLIError, fue %T", err)
 	}
-	if cliErr.Message != "La pregunta es ambigua." {
-		t.Errorf("message = %q, se esperaba el mensaje del backend", cliErr.Message)
+	if cliErr.Message != "Calliope no pudo responder a la pregunta." {
+		t.Errorf("message = %q, se esperaba el mensaje fijo en español", cliErr.Message)
 	}
 	if !strings.Contains(cliErr.Hint, "calliope concepts list") {
 		t.Errorf("hint = %q, se esperaba que sugiriera calliope concepts list", cliErr.Hint)
 	}
 	if got := output.ExitCodeFor(err); got != 1 {
 		t.Errorf("código de salida = %d, se esperaba 1 (genérico)", got)
+	}
+}
+
+// TestAskConRespuestaSinExitoNuncaFiltraElCuerpoDelBackend es el test de
+// no-regresión de C1: sea lo que sea que el backend mande en resp.Error -aquí
+// deliberadamente algo con pinta de detalle interno (nombre de tabla,
+// hostname, puerto)-, ese texto no debe aparecer en ningún sitio de la salida
+// del comando, ni en el mensaje ni en el hint. Antes de C1, este test habría
+// fallado: *resp.Error se usaba verbatim como mensaje.
+func TestAskConRespuestaSinExitoNuncaFiltraElCuerpoDelBackend(t *testing.T) {
+	cuerpoInterno := "falló fct_ventas_internal en db-shard-07.internal.calliope.so:5432"
+	d, stdout, st := depsWithServer(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"success":false,"error":"` + cuerpoInterno + `"}`))
+	})
+	if err := st.Save(auth.Credential{Kind: auth.KindAPIKey, Token: "k"}); err != nil {
+		t.Fatal(err)
+	}
+
+	root := testRoot(NewAskCmd(d), stdout)
+	root.SetArgs([]string{"ask", "¿?"})
+	err := root.Execute()
+	if err == nil {
+		t.Fatal("se esperaba error con success:false")
+	}
+
+	var cliErr *output.CLIError
+	if !errors.As(err, &cliErr) {
+		t.Fatalf("el error debería ser un *output.CLIError, fue %T", err)
+	}
+	if strings.Contains(cliErr.Message, cuerpoInterno) || strings.Contains(cliErr.Hint, cuerpoInterno) {
+		t.Fatalf("el cuerpo de error del backend se filtró: message=%q hint=%q", cliErr.Message, cliErr.Hint)
+	}
+	if strings.Contains(cliErr.Message, "internal.calliope.so") || strings.Contains(cliErr.Message, "5432") {
+		t.Fatalf("detalle interno del backend filtrado en el mensaje: %q", cliErr.Message)
 	}
 }
 

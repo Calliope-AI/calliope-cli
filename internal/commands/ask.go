@@ -30,11 +30,18 @@ func NewAskCmd(d appctx.Deps) *cobra.Command {
 				return err
 			}
 			if !resp.Success {
-				mensaje := "Calliope no pudo responder a la pregunta."
-				if resp.Error != nil && *resp.Error != "" {
-					mensaje = *resp.Error
-				}
-				return output.NewError(output.CodeGeneric, mensaje,
+				// El mensaje es fijo a propósito, aunque el backend traiga
+				// uno en resp.Error: la política de todo el SDK (ver
+				// mapStatus y transportError en internal/sdk/client.go)
+				// nunca reenvía el cuerpo de una respuesta del backend tal
+				// cual, porque puede filtrar nombres de tabla internos,
+				// hostnames o puertos de su infraestructura por el stdout
+				// de un CLI que corre en la máquina del cliente. Esta era
+				// la única grieta en esa política: resp.Error SÍ es cuerpo
+				// de respuesta, solo que llega dentro de un 200 en vez de
+				// en un status de error.
+				return output.NewError(output.CodeGeneric,
+					"Calliope no pudo responder a la pregunta.",
 					"Reformula la pregunta, o mira qué datos existen con: calliope concepts list")
 			}
 
