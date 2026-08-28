@@ -7,10 +7,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// CommandInfo es una hoja del árbol de comandos.
+// CommandInfo es una hoja del árbol de comandos: su ruta, su descripción
+// corta y la forma de sus argumentos tal como aparece en Use (p. ej. "<id>"
+// o "<clave> <valor>"; vacío si el comando no toma ninguno).
 type CommandInfo struct {
 	Path  string `json:"path"`
 	Short string `json:"short"`
+	Args  string `json:"args"`
 }
 
 // Catalog recorre el árbol y devuelve sus hojas, ordenadas. Se deriva del
@@ -30,7 +33,11 @@ func Catalog(root *cobra.Command) []CommandInfo {
 				recorrer(hijo, ruta)
 				continue
 			}
-			out = append(out, CommandInfo{Path: strings.Join(ruta, " "), Short: hijo.Short})
+			// hijo.Use siempre empieza por hijo.Name() -es justo de ahí de
+			// donde Cobra saca el nombre-, así que lo que sobra tras
+			// recortarlo es la forma de los argumentos.
+			args := strings.TrimSpace(strings.TrimPrefix(hijo.Use, hijo.Name()))
+			out = append(out, CommandInfo{Path: strings.Join(ruta, " "), Short: hijo.Short, Args: args})
 		}
 	}
 	recorrer(root, nil)

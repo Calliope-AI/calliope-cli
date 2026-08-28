@@ -32,28 +32,28 @@ credencial, ese comando dice exactamente qué ejecutar.
 ## Comandos
 
 <!-- catalogo:inicio -->
-- `calliope ask <pregunta>` — pregunta en lenguaje natural sobre datos y documentación
-- `calliope auth login` — guarda y verifica una credencial
+- `calliope ask <pregunta>` — pregunta en lenguaje natural sobre tus datos y tu documentación
+- `calliope auth login` — guarda y verifica una credencial de Calliope
 - `calliope auth logout` — borra la credencial almacenada
 - `calliope auth status` — muestra quién eres y de dónde sale la credencial
-- `calliope auth token` — imprime la credencial almacenada
+- `calliope auth token` — imprime la credencial almacenada (para scripts)
 - `calliope concepts list` — lista los conceptos de negocio
 - `calliope concepts show <id>` — muestra un concepto y sus atributos
 - `calliope config get <clave>` — muestra el valor de una clave
-- `calliope config list` — muestra cada valor con su procedencia
-- `calliope config path` — imprime la ruta de la configuración global
-- `calliope config set <clave> <valor>` — fija una clave
-- `calliope doctor` — diagnostica instalación, credencial y conectividad
+- `calliope config list` — muestra cada valor con la capa de la que proviene
+- `calliope config path` — imprime la ruta del fichero de configuración global
+- `calliope config set <clave> <valor>` — fija una clave en la configuración de proyecto (o global con --global)
+- `calliope doctor` — diagnostica la instalación, la credencial y la conectividad
 - `calliope docs list` — lista los documentos disponibles
 - `calliope docs search <consulta>` — búsqueda semántica en la documentación
-- `calliope docs show <id>` — metadatos de un documento
-- `calliope orgs list` — lista las organizaciones accesibles
-- `calliope orgs use <organización>` — fija la organización activa
-- `calliope query <SQL>` — ejecuta SQL contra los datos
-- `calliope rules list` — lista las reglas de negocio
-- `calliope schema` — esquema de la base de datos
-- `calliope skill` — vuelca este documento
-- `calliope version` — versión del binario
+- `calliope docs show <id>` — muestra los metadatos de un documento
+- `calliope orgs list` — lista las organizaciones accesibles con tu credencial
+- `calliope orgs use <organización>` — fija la organización activa en este directorio
+- `calliope query <SQL>` — ejecuta SQL contra los datos de la organización
+- `calliope rules list` — lista las reglas de negocio de la organización
+- `calliope schema` — muestra el esquema de la base de datos de la organización
+- `calliope skill` — vuelca la documentación para agentes de esta versión del CLI
+- `calliope version` — muestra la versión de calliope
 <!-- catalogo:fin -->
 
 ## Recetas
