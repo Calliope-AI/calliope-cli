@@ -170,7 +170,7 @@ func TestAllDevuelveCopia(t *testing.T) {
 }
 
 // Test para IMPORTANT 3: error corrupto debe incluir ruta y capa
-func TestErrorConfigJSONCorruptaInclujeRuta(t *testing.T) {
+func TestErrorConfigJSONCorruptaIncluyeRuta(t *testing.T) {
 	tmpDir := t.TempDir()
 	configDir := filepath.Join(tmpDir, ".calliope")
 	if err := os.MkdirAll(configDir, 0755); err != nil {
