@@ -1,0 +1,15 @@
+{
+  "name": "calliope",
+  "version": "0.1.0",
+  "description": "Acceso a los datos, la documentación y las reglas de negocio de Calliope Data desde Claude Code.",
+  "author": "Calliope Data",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/session-start.sh" }
+        ]
+      }
+    ]
+  }
+}
