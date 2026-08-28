@@ -126,6 +126,37 @@ func TestSchemaDevuelveTodasLasTablas(t *testing.T) {
 	}
 }
 
+// TestSchemaConTablasNulasDaArrayVacio es el test de I8 de la oleada final
+// para `schema`: si el backend manda `"tables":null` (organización recién
+// creada, sin tablas conectadas aún), SchemaResponse.Tables queda en un
+// slice nil, y antes ese nil llegaba intacto hasta el envelope y
+// serializaba como `"data":null` en vez de `"data":[]` -que es lo que
+// documenta el §6.1 del spec para una colección vacía.
+func TestSchemaConTablasNulasDaArrayVacio(t *testing.T) {
+	d, stdout, st := depsWithServer(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"organizationId":"acme","tables":null}`))
+	})
+	if err := st.Save(auth.Credential{Kind: auth.KindAPIKey, Token: "k"}); err != nil {
+		t.Fatal(err)
+	}
+
+	root := testRoot(NewSchemaCmd(d), stdout)
+	root.SetArgs([]string{"schema", "--json"})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("schema: %v", err)
+	}
+
+	var env struct {
+		Data json.RawMessage `json:"data"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &env); err != nil {
+		t.Fatalf("salida no es JSON: %v (%q)", err, stdout.String())
+	}
+	if got := strings.TrimSpace(string(env.Data)); got != "[]" {
+		t.Errorf(`data = %q, se esperaba "[]" (no "null")`, got)
+	}
+}
+
 // TestSchemaTableFiltraEnCliente comprueba que --table filtra por TableName
 // -el identificador real que va en el SQL-, no por Name -el nombre de
 // negocio-: es la corrección central de esta tarea frente al brief original,
@@ -905,5 +936,38 @@ func TestQueryEnTextoConCeroFilasNoQuedaVacio(t *testing.T) {
 	}
 	if !strings.Contains(salida, "Sin filas") {
 		t.Errorf("se esperaba un mensaje que dijera que no hay filas: %q", salida)
+	}
+}
+
+// TestQueryConDataNuloEnJSONDaArrayVacio es el test de I8 de la oleada
+// final para `query`: el backend puede mandar `"data":null` (no solo
+// `"data":[]`) cuando la consulta no devuelve filas, y QueryResponse.Rows
+// lo deja en un slice nil (ver TestQueryDataNuloExplicitoDevuelveCero en
+// internal/sdk/api_test.go). Antes ese nil llegaba intacto hasta el
+// envelope y serializaba como `"data":null`: la receta del propio
+// SKILL.md, `calliope query "..." --jq '.data[]'`, daba "cannot iterate
+// over: null" con exit 2 en vez de no imprimir nada.
+func TestQueryConDataNuloEnJSONDaArrayVacio(t *testing.T) {
+	d, stdout, st := depsWithServer(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"data":null}`))
+	})
+	if err := st.Save(auth.Credential{Kind: auth.KindAPIKey, Token: "k"}); err != nil {
+		t.Fatal(err)
+	}
+
+	root := testRoot(NewQueryCmd(d), stdout)
+	root.SetArgs([]string{"query", "SELECT 1 WHERE false", "--json"})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("query: %v", err)
+	}
+
+	var env struct {
+		Data json.RawMessage `json:"data"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &env); err != nil {
+		t.Fatalf("salida no es JSON: %v (%q)", err, stdout.String())
+	}
+	if got := strings.TrimSpace(string(env.Data)); got != "[]" {
+		t.Errorf(`data = %q, se esperaba "[]" (no "null")`, got)
 	}
 }

@@ -137,6 +137,37 @@ func TestConceptsListDevuelveElGrafo(t *testing.T) {
 	}
 }
 
+// TestConceptsListConConceptosNulosDaArrayVacio es el test de I8 de la
+// oleada final para `concepts list`: si el backend manda `"concepts":null`
+// (una ontología recién creada, por ejemplo), ConceptGraphResponse.Concepts
+// queda en un slice nil, y antes ese nil llegaba intacto hasta el envelope
+// y serializaba como `"data":null` en vez de `"data":[]` -lo que documenta
+// el §6.1 del spec para una colección vacía.
+func TestConceptsListConConceptosNulosDaArrayVacio(t *testing.T) {
+	d, stdout, st := depsWithServer(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"concepts":null}`))
+	})
+	if err := st.Save(auth.Credential{Kind: auth.KindAPIKey, Token: "k"}); err != nil {
+		t.Fatal(err)
+	}
+
+	root := testRoot(NewConceptsCmd(d), stdout)
+	root.SetArgs([]string{"concepts", "list", "--json"})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("concepts list: %v", err)
+	}
+
+	var env struct {
+		Data json.RawMessage `json:"data"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &env); err != nil {
+		t.Fatalf("salida no es JSON: %v (%q)", err, stdout.String())
+	}
+	if got := strings.TrimSpace(string(env.Data)); got != "[]" {
+		t.Errorf(`data = %q, se esperaba "[]" (no "null")`, got)
+	}
+}
+
 // TestConceptsListEnTextoMuestraTabla cubre el renderer de Text de `concepts
 // list`, que depsWithServer (IsTTY:false) nunca ejercita en modo automático.
 // Se fija IsTTY:true a propósito para forzar ese camino, y se comprueba tanto
@@ -532,6 +563,39 @@ func TestRulesListDevuelveLasReglas(t *testing.T) {
 	if len(env.Breadcrumbs) != 1 || env.Breadcrumbs[0].Action != "conceptos" ||
 		env.Breadcrumbs[0].Cmd != "calliope concepts list" {
 		t.Errorf("breadcrumbs inesperados: %+v", env.Breadcrumbs)
+	}
+}
+
+// TestRulesListConRespuestaNulaDaArrayVacio es el test de I8 de la oleada
+// final para `rules list`: el backend responde con el array directamente
+// (no envuelto en un objeto, a diferencia de docs/concepts), así que una
+// organización sin reglas puede mandar el cuerpo `null` a secas. ListRules
+// decodifica esa respuesta en un slice de Go que queda en nil, y antes ese
+// nil llegaba intacto hasta el envelope y serializaba como `"data":null`
+// en vez de `"data":[]` -lo que documenta el §6.1 del spec para una
+// colección vacía.
+func TestRulesListConRespuestaNulaDaArrayVacio(t *testing.T) {
+	d, stdout, st := depsWithServer(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`null`))
+	})
+	if err := st.Save(auth.Credential{Kind: auth.KindAPIKey, Token: "k"}); err != nil {
+		t.Fatal(err)
+	}
+
+	root := testRoot(NewRulesCmd(d), stdout)
+	root.SetArgs([]string{"rules", "list", "--json"})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("rules list: %v", err)
+	}
+
+	var env struct {
+		Data json.RawMessage `json:"data"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &env); err != nil {
+		t.Fatalf("salida no es JSON: %v (%q)", err, stdout.String())
+	}
+	if got := strings.TrimSpace(string(env.Data)); got != "[]" {
+		t.Errorf(`data = %q, se esperaba "[]" (no "null")`, got)
 	}
 }
 

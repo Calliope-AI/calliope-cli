@@ -144,6 +144,39 @@ func TestDocsListPasaLosFiltros(t *testing.T) {
 	}
 }
 
+// TestDocsListConContenidoNuloDaArrayVacio es el test de I8 de la oleada
+// final para `docs list`: si el backend manda `"content":null` (una
+// organización sin documentos, por ejemplo), DocumentPage.Content queda en
+// un slice nil, y antes ese nil llegaba intacto hasta el envelope y
+// serializaba como `"data":null` en vez de `"data":[]` -que es lo que
+// documenta el §6.1 del spec para una colección vacía, y lo que rompía la
+// propia receta del SKILL.md: `calliope docs list --jq '.data[]'` daba
+// "cannot iterate over: null" con exit 2 en vez de no imprimir nada.
+func TestDocsListConContenidoNuloDaArrayVacio(t *testing.T) {
+	d, stdout, st := depsWithServer(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"content":null,"totalSize":0}`))
+	})
+	if err := st.Save(auth.Credential{Kind: auth.KindAPIKey, Token: "k"}); err != nil {
+		t.Fatal(err)
+	}
+
+	root := testRoot(NewDocsCmd(d), stdout)
+	root.SetArgs([]string{"docs", "list", "--json"})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("docs list: %v", err)
+	}
+
+	var env struct {
+		Data json.RawMessage `json:"data"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &env); err != nil {
+		t.Fatalf("salida no es JSON: %v (%q)", err, stdout.String())
+	}
+	if got := strings.TrimSpace(string(env.Data)); got != "[]" {
+		t.Errorf(`data = %q, se esperaba "[]" (no "null")`, got)
+	}
+}
+
 // TestDocsListSinFiltrosNoEnviaQueryString comprueba el reverso de la
 // anterior: sin flags, ListDocumentsParams no debe generar ningún parámetro
 // (page/size en 0 se omiten, no se envían como "0").
