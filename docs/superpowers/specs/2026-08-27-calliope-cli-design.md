@@ -103,10 +103,22 @@ render local del conjunto de resultados a CSV, y compone con los modos de la
 tabla 6.2 como cualquier otro comando.
 
 **Grupos vs atajos.** Los grupos de recursos (`docs`, `concepts`, `rules`,
-`orgs`, `auth`, `config`) no definen `RunE`: invocarlos pelados muestra la ayuda,
-que es lo que Cobra hace solo cuando un comando tiene subcomandos y no `RunE`. Los
-atajos que ejecutan una acción directa (`ask`, `query`, `schema`, `doctor`) sí lo
-definen. Un test de CI comprueba esta invariante.
+`orgs`, `auth`, `config`) se comportan como grupos: invocados pelados muestran la
+ayuda (código de salida 0); con un subcomando que no existe, fallan con un error
+de uso (código de salida 2, ver 6.3). Los atajos que ejecutan una acción directa
+(`ask`, `query`, `schema`, `doctor`) ejecutan esa acción directamente. Un test de
+CI comprueba esta invariante.
+
+*Nota de la revisión final (oleada del 2026-08-27):* la redacción original de
+este párrafo fijaba la invariante por MECANISMO ("los grupos no definen `RunE`")
+en vez de por comportamiento, y ese mecanismo entra en contradicción con el
+§6.3: Cobra decide si un comando es `Runnable()` -y por tanto si cae a la ayuda-
+ANTES de validar los argumentos, así que un grupo sin `RunE` no podía distinguir
+"invocado sin argumentos" de "invocado con un subcomando que no existe", y las
+dos rutas mostraban la misma ayuda con código 0. Dictamen: gana el §6.3; la
+invariante se redefine por comportamiento, como queda arriba. Los grupos sí
+definen `RunE` ahora (ver `groupRunE` en `internal/commands/args.go`), que es
+lo que les permite distinguir las dos rutas.
 
 ### 5.1 Mapeo a endpoints
 
