@@ -9,12 +9,14 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/calliope/calliope-cli/internal/appctx"
 	"github.com/calliope/calliope-cli/internal/auth"
 	"github.com/calliope/calliope-cli/internal/output"
+	"github.com/calliope/calliope-cli/internal/version"
 )
 
 // testRoot monta una raíz con los mismos flags globales que la real y le
@@ -119,6 +121,68 @@ func TestAuthLoginValidaLaCredencialAntesDeGuardarla(t *testing.T) {
 	c, err := st.Load()
 	if err != nil || c == nil || c.Token != "cal_live_ok" {
 		t.Errorf("la credencial no se guardó: %+v (%v)", c, err)
+	}
+}
+
+// TestAuthLoginMandaElUserAgentConVersion es el test de M1 de la oleada
+// final: clientWith (el cliente que usa `login` para validar la credencial
+// antes de guardarla) se construía sin UserAgent, así que login mandaba el
+// "calliope-cli" por defecto de sdk.New en vez de "calliope-cli/<versión>",
+// a diferencia de cualquier comando que pasa por appctx.Build.
+func TestAuthLoginMandaElUserAgentConVersion(t *testing.T) {
+	var visto string
+	d, _, _ := depsWithServer(t, func(w http.ResponseWriter, r *http.Request) {
+		visto = r.Header.Get("User-Agent")
+		w.Write([]byte(`{"userId":"u-1","email":"a@b.c"}`))
+	})
+
+	root := testRoot(NewAuthCmd(d), d.Stdout)
+	root.SetArgs([]string{"auth", "login", "--api-key", "cal_live_ok"})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("login: %v", err)
+	}
+
+	quiero := "calliope-cli/" + version.Version
+	if visto != quiero {
+		t.Errorf("User-Agent = %q, se esperaba %q", visto, quiero)
+	}
+}
+
+// TestAuthLoginRespetaCalliopeTimeout es la segunda mitad de M1: clientWith
+// se construía sin Timeout, así que login ignoraba CALLIOPE_TIMEOUT y se
+// quedaba con el timeout por defecto de sdk.New (60s) sin importar lo que
+// dijera la configuración. Se fija un timeout muy corto y un backend que
+// tarda más: si clientWith siguiera ignorando CALLIOPE_TIMEOUT, este test
+// tardaría 60s en fallar (o no fallaría) en vez de los ~200ms que tarda con
+// el timeout real aplicado.
+func TestAuthLoginRespetaCalliopeTimeout(t *testing.T) {
+	d, _, _ := depsWithServer(t, func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(200 * time.Millisecond)
+		w.Write([]byte(`{"userId":"u-1","email":"a@b.c"}`))
+	})
+	envBase := d.Env
+	d.Env = func(k string) string {
+		if k == "CALLIOPE_TIMEOUT" {
+			return "20ms"
+		}
+		return envBase(k)
+	}
+
+	root := testRoot(NewAuthCmd(d), d.Stdout)
+	root.SetArgs([]string{"auth", "login", "--api-key", "cal_live_ok"})
+
+	inicio := time.Now()
+	err := root.Execute()
+	transcurrido := time.Since(inicio)
+
+	if err == nil {
+		t.Fatal("se esperaba un error de timeout")
+	}
+	if transcurrido > 2*time.Second {
+		t.Fatalf("tardó %s: CALLIOPE_TIMEOUT no se está aplicando (se habría quedado con el timeout por defecto de 60s)", transcurrido)
+	}
+	if !strings.Contains(err.Error(), "tiempo límite") {
+		t.Errorf("mensaje = %q, se esperaba un error de timeout", err.Error())
 	}
 }
 

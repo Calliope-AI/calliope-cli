@@ -9,10 +9,12 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/calliope/calliope-cli/internal/appctx"
 	"github.com/calliope/calliope-cli/internal/auth"
 	"github.com/calliope/calliope-cli/internal/output"
+	"github.com/calliope/calliope-cli/internal/version"
 )
 
 // TestOrgsEsUnGrupoDeRecursos comprueba el comportamiento de `orgs` como
@@ -80,6 +82,74 @@ func TestOrgsListDevuelveLasOrganizaciones(t *testing.T) {
 	}
 	if len(env.Data) != 2 || env.Data[0].Name != "acme" {
 		t.Errorf("data inesperada: %q", stdout.String())
+	}
+}
+
+// TestOrgsListMandaElUserAgentConVersionYRespetaElTimeout es el test de M1
+// de la oleada final: clientWith (el cliente que usa `orgs list`, que no
+// pasa por appctx.Build porque listar organizaciones no exige tener una ya
+// elegida) se construía sin Timeout ni UserAgent, así que orgs list
+// ignoraba CALLIOPE_TIMEOUT y mandaba el "calliope-cli" por defecto de
+// sdk.New en vez de "calliope-cli/<versión>".
+func TestOrgsListMandaElUserAgentConVersionYRespetaElTimeout(t *testing.T) {
+	var visto string
+	d, stdout, st := depsWithServer(t, func(w http.ResponseWriter, r *http.Request) {
+		visto = r.Header.Get("User-Agent")
+		w.Write([]byte(`[{"id":"o-1","name":"acme"}]`))
+	})
+	if err := st.Save(auth.Credential{Kind: auth.KindAPIKey, Token: "k"}); err != nil {
+		t.Fatal(err)
+	}
+
+	root := testRoot(NewOrgsCmd(d), stdout)
+	root.SetArgs([]string{"orgs", "list", "--json"})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("orgs list: %v", err)
+	}
+
+	quiero := "calliope-cli/" + version.Version
+	if visto != quiero {
+		t.Errorf("User-Agent = %q, se esperaba %q", visto, quiero)
+	}
+}
+
+// TestOrgsListRespetaCalliopeTimeout es la segunda mitad de M1 para orgs
+// list: sin Timeout en clientWith, un backend lento se habría quedado con
+// el timeout por defecto de sdk.New (60s) sin importar CALLIOPE_TIMEOUT. Se
+// fija un timeout muy corto y un backend que tarda más: si clientWith
+// siguiera ignorando CALLIOPE_TIMEOUT, este test tardaría 60s en fallar (o
+// no fallaría) en vez de los ~200ms que tarda con el timeout real aplicado.
+func TestOrgsListRespetaCalliopeTimeout(t *testing.T) {
+	d, stdout, st := depsWithServer(t, func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(200 * time.Millisecond)
+		w.Write([]byte(`[]`))
+	})
+	if err := st.Save(auth.Credential{Kind: auth.KindAPIKey, Token: "k"}); err != nil {
+		t.Fatal(err)
+	}
+	envBase := d.Env
+	d.Env = func(k string) string {
+		if k == "CALLIOPE_TIMEOUT" {
+			return "20ms"
+		}
+		return envBase(k)
+	}
+
+	root := testRoot(NewOrgsCmd(d), stdout)
+	root.SetArgs([]string{"orgs", "list"})
+
+	inicio := time.Now()
+	err := root.Execute()
+	transcurrido := time.Since(inicio)
+
+	if err == nil {
+		t.Fatal("se esperaba un error de timeout")
+	}
+	if transcurrido > 2*time.Second {
+		t.Fatalf("tardó %s: CALLIOPE_TIMEOUT no se está aplicando (se habría quedado con el timeout por defecto de 60s)", transcurrido)
+	}
+	if !strings.Contains(err.Error(), "tiempo límite") {
+		t.Errorf("mensaje = %q, se esperaba un error de timeout", err.Error())
 	}
 }
 

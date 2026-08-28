@@ -111,7 +111,7 @@ func Build(cmd *cobra.Command, d Deps) (*Context, error) {
 	ctx.Client = sdk.New(sdk.Options{
 		BaseURL:    ctx.Cfg.BaseURL(),
 		Credential: cred,
-		Timeout:    timeoutOf(ctx.Cfg),
+		Timeout:    TimeoutOf(ctx.Cfg),
 		UserAgent:  "calliope-cli/" + version.Version,
 	})
 	return ctx, nil
@@ -217,7 +217,14 @@ func OutputMode(cmd *cobra.Command, cfg *config.Config, d Deps) presenter.Option
 	return opts
 }
 
-func timeoutOf(cfg *config.Config) time.Duration {
+// TimeoutOf resuelve el timeout de red de esta invocación (config.KeyTimeout,
+// con su propia precedencia de capas -flags, CALLIOPE_TIMEOUT, config...-) o
+// 60s por defecto si no hay uno fijado o no parsea. Exportada para que
+// clientWith (internal/commands/auth.go) construya sus clientes SDK con el
+// mismo timeout que appctx.Build, en vez de con el de sdk.New por defecto
+// -que es fijo y no puede ajustarse con CALLIOPE_TIMEOUT- (M1 de la oleada
+// final).
+func TimeoutOf(cfg *config.Config) time.Duration {
 	d, err := time.ParseDuration(cfg.Get(config.KeyTimeout).Value)
 	if err != nil || d <= 0 {
 		return 60 * time.Second

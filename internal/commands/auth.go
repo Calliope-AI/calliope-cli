@@ -12,6 +12,7 @@ import (
 	"github.com/calliope/calliope-cli/internal/output"
 	"github.com/calliope/calliope-cli/internal/presenter"
 	"github.com/calliope/calliope-cli/internal/sdk"
+	"github.com/calliope/calliope-cli/internal/version"
 )
 
 // NewAuthCmd construye el grupo `auth`. Invocado pelado muestra la ayuda
@@ -48,7 +49,7 @@ func newAuthLoginCmd(d appctx.Deps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			cliente := sdk.New(sdk.Options{BaseURL: ctx.Cfg.BaseURL(), Credential: cred})
+			cliente := clientWith(ctx, cred)
 			me, err := cliente.Me(cmd.Context())
 			if err != nil {
 				return err
@@ -138,6 +139,23 @@ func authResolve(d appctx.Deps) (auth.Credential, string, error) {
 	return auth.Resolve(d.Env, d.Store)
 }
 
+// clientWith construye un cliente SDK con la credencial dada -en vez de la
+// que resolvería appctx.Build- para los dos comandos que necesitan hablar
+// con el backend sin exigir todavía una organización u otra credencial ya
+// resuelta: auth login valida la credencial antes de guardarla, y orgs list
+// lista organizaciones sin exigir una ya seleccionada.
+//
+// M1 de la oleada final: antes se construía sin Timeout ni UserAgent -a
+// diferencia del cliente que monta appctx.Build-, así que auth login y orgs
+// list ignoraban CALLIOPE_TIMEOUT y mandaban un User-Agent sin versión al
+// backend. Ahora usa los mismos appctx.TimeoutOf(ctx.Cfg) y
+// "calliope-cli/"+version.Version que appctx.Build, para que solo haya un
+// sitio que sepa cómo se construye un cliente SDK "de verdad".
 func clientWith(ctx *appctx.Context, cred auth.Credential) *sdk.Client {
-	return sdk.New(sdk.Options{BaseURL: ctx.Cfg.BaseURL(), Credential: cred})
+	return sdk.New(sdk.Options{
+		BaseURL:    ctx.Cfg.BaseURL(),
+		Credential: cred,
+		Timeout:    appctx.TimeoutOf(ctx.Cfg),
+		UserAgent:  "calliope-cli/" + version.Version,
+	})
 }
