@@ -2,6 +2,7 @@ package presenter
 
 import (
 	"bytes"
+	"errors"
 	"strings"
 	"testing"
 
@@ -37,6 +38,10 @@ func TestJQInvalidoDevuelveErrorDeUso(t *testing.T) {
 	}
 }
 
+// TestJQErrorEnEvaluacionDevuelveErrorDeUso cubre I10 de la oleada final:
+// era el único CLIError de todo el CLI con el hint vacío -el de parseo,
+// justo encima en jq.go, sí apunta al manual- y con el mensaje de gojq
+// embebido en inglés sin ninguna frase en español alrededor.
 func TestJQErrorEnEvaluacionDevuelveErrorDeUso(t *testing.T) {
 	// Expresión sintácticamente válida pero que falla al evaluar:
 	// .data es un array, no tiene propiedades, así que .data.foo es un error de tipo.
@@ -50,5 +55,16 @@ func TestJQErrorEnEvaluacionDevuelveErrorDeUso(t *testing.T) {
 	}
 	if got := output.ExitCodeFor(err); got != 2 {
 		t.Errorf("código de salida = %d, se esperaba 2 (uso incorrecto)", got)
+	}
+
+	var cliErr *output.CLIError
+	if !errors.As(err, &cliErr) {
+		t.Fatalf("el error debería ser un *output.CLIError, fue %T", err)
+	}
+	if cliErr.Hint == "" {
+		t.Error("el error de evaluación jq debería traer un hint, como ya trae el de parseo")
+	}
+	if !strings.HasPrefix(cliErr.Message, "Error al evaluar la expresión jq: ") {
+		t.Errorf("el mensaje debería ir enmarcado en español, fue: %q", cliErr.Message)
 	}
 }

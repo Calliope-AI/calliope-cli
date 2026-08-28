@@ -38,8 +38,18 @@ func renderJQ(w io.Writer, env output.Envelope, expr string) error {
 			return nil
 		}
 		if err, ok := v.(error); ok {
+			// I10 de la oleada final: este era el único CLIError de todo el
+			// CLI con el hint vacío -el de parseo, tres líneas más arriba,
+			// sí apunta al manual- y con el mensaje de gojq embebido en
+			// inglés sin ninguna frase en español alrededor. El mensaje
+			// técnico de gojq (p. ej. "cannot iterate over: null") describe
+			// un fallo de LA EXPRESIÓN jq del usuario contra la forma real
+			// del envelope, no un dato ajeno como el cuerpo de una
+			// respuesta del backend, así que conservarlo aporta contexto
+			// real en vez de filtrar nada.
 			return output.NewError(output.CodeUsage,
-				fmt.Sprintf("Error al evaluar la expresión jq: %v", err), "")
+				fmt.Sprintf("Error al evaluar la expresión jq: %v.", err),
+				"Comprueba que la expresión encaja con la forma real del envelope -pruébalo primero con --json-, o consulta la sintaxis en https://jqlang.github.io/jq/manual/")
 		}
 		if err := writeJSON(w, v); err != nil {
 			return err
