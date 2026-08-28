@@ -19,7 +19,7 @@ jobs:
       - run: go test ./... -race
       - uses: goreleaser/goreleaser-action@v6
         with:
-          version: latest
+          version: "~> v2.18"
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
