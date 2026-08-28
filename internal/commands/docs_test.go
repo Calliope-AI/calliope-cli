@@ -37,25 +37,45 @@ func TestDocsListPasaLosFiltros(t *testing.T) {
 	}
 
 	root := testRoot(NewDocsCmd(d), stdout)
-	root.SetArgs([]string{"docs", "list", "--status", "READY", "--tag", "finanzas", "--json"})
+	root.SetArgs([]string{
+		"docs", "list",
+		"--status", "READY",
+		"--tag", "finanzas",
+		"--q", "factura",
+		"--page", "2",
+		"--size", "25",
+		"--json",
+	})
 	if err := root.Execute(); err != nil {
 		t.Fatalf("docs list: %v", err)
 	}
 	if vistaQuery == "" {
 		t.Error("los filtros deben viajar en la query string")
 	}
-	// Se comprueba el valor exacto de cada filtro, no solo que la query no esté
-	// vacía: eso no detectaría un flag cableado al campo equivocado (p. ej.
-	// --status escribiendo en p.Tag).
+	// Se comprueba el valor exacto de los cinco filtros, no solo que la query
+	// no esté vacía: eso no detectaría un flag cableado al campo equivocado
+	// (p. ej. --status escribiendo en p.Tag, o --page y --size
+	// intercambiados entre sí). Los cinco viajan a la vez y con valores
+	// distintos entre sí para que un intercambio entre cualquier par sea
+	// observable.
 	q, err := url.ParseQuery(vistaQuery)
 	if err != nil {
 		t.Fatalf("query inválida: %v", err)
 	}
-	if q.Get("status") != "READY" || q.Get("tag") != "finanzas" {
-		t.Errorf("query = %q, se esperaba status=READY y tag=finanzas", vistaQuery)
+	if q.Get("status") != "READY" {
+		t.Errorf("status = %q, se esperaba READY", q.Get("status"))
 	}
-	if q.Get("q") != "" || q.Get("page") != "" || q.Get("size") != "" {
-		t.Errorf("query = %q, no se pasaron --q/--page/--size y no deberían aparecer", vistaQuery)
+	if q.Get("tag") != "finanzas" {
+		t.Errorf("tag = %q, se esperaba finanzas", q.Get("tag"))
+	}
+	if q.Get("q") != "factura" {
+		t.Errorf("q = %q, se esperaba factura", q.Get("q"))
+	}
+	if q.Get("page") != "2" {
+		t.Errorf("page = %q, se esperaba 2", q.Get("page"))
+	}
+	if q.Get("size") != "25" {
+		t.Errorf("size = %q, se esperaba 25", q.Get("size"))
 	}
 
 	var env struct {
