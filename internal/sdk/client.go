@@ -81,7 +81,14 @@ func (c *Client) Do(ctx context.Context, method, path string, body, out any) err
 
 	req, err := http.NewRequestWithContext(ctx, method, c.baseURL+path, cuerpo)
 	if err != nil {
-		return err
+		// Un error aquí es casi siempre una URL base mal formada (p. ej. con
+		// un carácter de control), no un problema de red: se traduce igual
+		// que los errores de mapStatus/transportError, en vez de dejar pasar
+		// el err.Error() crudo de net/url, que sale en inglés y filtra un
+		// detalle interno de la librería estándar en vez de una acción.
+		return output.NewError(output.CodeGeneric,
+			"No se pudo construir la solicitud a Calliope Data.",
+			"Comprueba la URL del backend con: calliope config list")
 	}
 	k, v := c.cred.Header()
 	req.Header.Set(k, v)

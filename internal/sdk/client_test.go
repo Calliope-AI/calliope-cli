@@ -179,6 +179,35 @@ func TestElTimeoutProduceUnErrorAccionable(t *testing.T) {
 	}
 }
 
+// TestErrorAlConstruirLaPeticionSaleEnEspanol cubre el camino en que
+// http.NewRequestWithContext falla (p. ej. por un carácter de control en la
+// URL, típico de un base_url mal formado). Antes de esta corrección, Do
+// devolvía ese err tal cual, y net/url produce mensajes en inglés que filtran
+// detalle interno de la librería estándar ("net/url: invalid control
+// character in URL"), incumpliendo la restricción de mensajes en español.
+func TestErrorAlConstruirLaPeticionSaleEnEspanol(t *testing.T) {
+	c, _ := testClient(t, func(w http.ResponseWriter, r *http.Request) { w.Write([]byte(`{}`)) })
+
+	var out map[string]any
+	// El salto de línea es un carácter de control: net/url lo rechaza al
+	// parsear la URL, sin necesidad de tocar la red.
+	err := c.Do(context.Background(), http.MethodGet, "/x\n", nil, &out)
+	if err == nil {
+		t.Fatal("se esperaba error al construir la petición")
+	}
+
+	var cliErr *output.CLIError
+	if !asCLIError(err, &cliErr) {
+		t.Fatalf("se esperaba *output.CLIError, se obtuvo %T: %v", err, err)
+	}
+	if cliErr.Hint == "" {
+		t.Error("el error debe traer un hint accionable")
+	}
+	if strings.Contains(err.Error(), "net/url") || strings.Contains(err.Error(), "control character") {
+		t.Errorf("el mensaje filtra el error crudo de Go en inglés: %q", err.Error())
+	}
+}
+
 func TestRespuestaVaciaNoRompe(t *testing.T) {
 	c, _ := testClient(t, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)

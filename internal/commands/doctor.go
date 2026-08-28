@@ -33,7 +33,12 @@ func NewDoctorCmd(d appctx.Deps) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx, err := appctx.BuildSinCredencial(cmd, d)
 			if err != nil {
-				return err
+				// Una configuración que no carga (p. ej. un config.json
+				// corrupto) es exactamente el tipo de instalación rota que
+				// doctor tiene que diagnosticar, no una que lo tumbe. Sin
+				// *appctx.Context no hay ctx.Render, así que se informa con lo
+				// mínimo que no depende de la configuración.
+				return renderConfigRota(cmd, d, err)
 			}
 
 			checks := []Check{{
@@ -62,8 +67,14 @@ func NewDoctorCmd(d appctx.Deps) *cobra.Command {
 			}
 
 			org := ctx.Org
-			if org == "" {
+			origenOrg := string(ctx.Cfg.Get(config.KeyOrg).Source)
+			if org == "" && cred.Org != "" {
+				// La organización viene del fallback a la credencial (ver
+				// appctx.Build), no de la configuración: etiquetarla con
+				// ctx.Cfg.Get(config.KeyOrg).Source mentiría (saldría
+				// "default").
 				org = cred.Org
+				origenOrg = "credencial"
 			}
 			if org == "" {
 				checks = append(checks, Check{
@@ -75,7 +86,7 @@ func NewDoctorCmd(d appctx.Deps) *cobra.Command {
 				checks = append(checks, Check{
 					Name:   "organización",
 					Status: "ok",
-					Detail: org + " (" + string(ctx.Cfg.Get(config.KeyOrg).Source) + ")",
+					Detail: org + " (" + origenOrg + ")",
 				})
 			}
 
@@ -95,6 +106,58 @@ func NewDoctorCmd(d appctx.Deps) *cobra.Command {
 			})
 		},
 	}
+}
+
+// renderConfigRota informa de que la configuración no se pudo cargar, sin
+// devolver ese error tal cual: doctor tiene que seguir informando incluso
+// cuando el propio config.json está roto, que es justo el tipo de
+// instalación rota que existe para diagnosticar. Emite lo mínimo que no
+// depende de la configuración (la versión) más el chequeo que sí falló, y
+// sale con código 0 igual que el resto de doctor.
+func renderConfigRota(cmd *cobra.Command, d appctx.Deps, errCfg error) error {
+	checks := []Check{{
+		Name:   "versión",
+		Status: "ok",
+		Detail: fmt.Sprintf("calliope %s (%s)", version.Version, version.Commit),
+	}, {
+		Name:   "configuración",
+		Status: "error",
+		Detail: fmt.Sprintf("%s (corrígelo o bórralo y vuelve a intentarlo)", errCfg.Error()),
+	}}
+
+	return presenter.Render(presenter.Result{
+		Envelope: output.OKEnvelope(checks, summaryOf(checks)),
+		Text: func(w io.Writer) error {
+			filas := make([][]string, 0, len(checks))
+			for _, c := range checks {
+				filas = append(filas, []string{symbol(c.Status), c.Name, c.Detail})
+			}
+			return presenter.Table(w, []string{"", "COMPROBACIÓN", "DETALLE"}, filas)
+		},
+	}, outputModeSinConfig(cmd, d))
+}
+
+// outputModeSinConfig arma las opciones de render sin pasar por
+// *config.Config: es la única vía disponible cuando la configuración es
+// precisamente lo que falló al cargar. Replica appctx.outputMode (no
+// exportado) salvo por la capa de cfg.Output(), que aquí no existe.
+func outputModeSinConfig(cmd *cobra.Command, d appctx.Deps) presenter.Options {
+	opts := presenter.Options{Mode: presenter.ModeAuto, IsTTY: d.IsTTY, Out: d.Stdout}
+
+	if v, _ := cmd.Flags().GetString("jq"); v != "" {
+		opts.Mode, opts.JQExpr = presenter.ModeJQ, v
+		return opts
+	}
+	if v, _ := cmd.Flags().GetBool("json"); v {
+		opts.Mode = presenter.ModeJSON
+	}
+	if v, _ := cmd.Flags().GetBool("quiet"); v {
+		opts.Mode = presenter.ModeQuiet
+	}
+	if v, _ := cmd.Flags().GetBool("md"); v {
+		opts.Mode = presenter.ModeMarkdown
+	}
+	return opts
 }
 
 func checkConnectivity(cmd *cobra.Command, ctx *appctx.Context, cred auth.Credential) Check {
