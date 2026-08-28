@@ -30,6 +30,11 @@ type Deps struct {
 	Stdout io.Writer
 	Stderr io.Writer
 	IsTTY  bool
+	// ReleasesURL es el endpoint que consulta el aviso de nueva versión.
+	// Inyectable (en vez de leer version.ReleasesURL directamente) para que
+	// los tests de cli puedan apuntarlo a un servidor de prueba sin tocar la
+	// red real ni una variable global mutable.
+	ReleasesURL string
 }
 
 // DefaultDeps son las dependencias reales del proceso.
@@ -37,12 +42,13 @@ func DefaultDeps() Deps {
 	cwd, _ := os.Getwd()
 	env := os.Getenv
 	return Deps{
-		Cwd:    cwd,
-		Env:    env,
-		Store:  auth.DefaultStore(filepath.Dir(config.GlobalPath(env))),
-		Stdout: os.Stdout,
-		Stderr: os.Stderr,
-		IsTTY:  term.IsTerminal(int(os.Stdout.Fd())),
+		Cwd:         cwd,
+		Env:         env,
+		Store:       auth.DefaultStore(filepath.Dir(config.GlobalPath(env))),
+		Stdout:      os.Stdout,
+		Stderr:      os.Stderr,
+		IsTTY:       term.IsTerminal(int(os.Stdout.Fd())),
+		ReleasesURL: version.ReleasesURL,
 	}
 }
 

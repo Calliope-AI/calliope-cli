@@ -16,6 +16,14 @@ builds:
 
 archives:
   - formats: [tar.gz]
+    # El nombre está acoplado a install.sh, que reconstruye este mismo nombre
+    # a mano ("calliope_${version#v}_${so}_${arco}.tar.gz": sistema en
+    # minúsculas, arquitectura literal, versión sin «v»). Tocar esta plantilla
+    # obliga a tocar install.sh a la vez, y viceversa. No se deja en el valor
+    # por defecto de GoReleaser: aunque hoy coincide (ver informe de la Task
+    # 21), ese valor por defecto ha cambiado de versión en versión de la
+    # herramienta y el workflow usa `version: latest`.
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     format_overrides:
       - goos: windows
         formats: [zip]
@@ -33,6 +41,9 @@ brews:
   - repository:
       owner: calliope
       name: homebrew-tap
+      # GITHUB_TOKEN (el de por defecto en el workflow) no tiene permiso de
+      # escritura sobre calliope/homebrew-tap: hace falta el token dedicado.
+      token: "{{ .Env.TAP_GITHUB_TOKEN }}"
     description: CLI de Calliope Data
     install: |
       bin.install "calliope"
@@ -41,6 +52,9 @@ scoops:
   - repository:
       owner: calliope
       name: scoop-bucket
+      # Mismo motivo que en brews[].repository.token: GITHUB_TOKEN no puede
+      # escribir en calliope/scoop-bucket.
+      token: "{{ .Env.TAP_GITHUB_TOKEN }}"
     description: CLI de Calliope Data
 
 release:

@@ -1,6 +1,7 @@
 package version
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -27,6 +28,36 @@ func TestNoAvisaSiYaEstaAlDia(t *testing.T) {
 
 	if got := LatestVersion(srv.URL, "v1.2.0", time.Second); got != "" {
 		t.Errorf("LatestVersion = %q, no debe avisar estando al día", got)
+	}
+}
+
+// El ldflag de GoReleaser inyecta {{.Version}} SIN el prefijo "v" (p. ej.
+// "1.2.0"), pero el tag_name de la API de GitHub SIEMPRE lo lleva (p. ej.
+// "v1.2.0"). Sin normalizar, un binario real compararía "1.2.0" contra
+// "v1.2.0" — que nunca son iguales como cadenas — y avisaría siempre de una
+// "versión más reciente" que en realidad es la misma que ya tiene instalada.
+// Se comprueba en ambas direcciones: no importa cuál de las dos formas
+// llegue en `actual` ni cuál llegue en el tag_name.
+func TestElPrefijoVNoImportaAlComparar(t *testing.T) {
+	casos := []struct {
+		nombre string
+		actual string
+		tag    string
+	}{
+		{"actual sin v (el caso real), tag con v", "1.2.0", "v1.2.0"},
+		{"actual con v, tag sin v", "v1.2.0", "1.2.0"},
+	}
+	for _, c := range casos {
+		t.Run(c.nombre, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				fmt.Fprintf(w, `{"tag_name":%q}`, c.tag)
+			}))
+			defer srv.Close()
+
+			if got := LatestVersion(srv.URL, c.actual, time.Second); got != "" {
+				t.Errorf("LatestVersion(actual=%q, tag=%q) = %q, son la misma versión: no debía avisar", c.actual, c.tag, got)
+			}
+		})
 	}
 }
 

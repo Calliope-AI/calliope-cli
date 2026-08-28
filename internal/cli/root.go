@@ -53,7 +53,7 @@ func newVersionCmd(d appctx.Deps) *cobra.Command {
 			// La línea de aviso solo sale en terminal interactivo: en una
 			// tubería rompería a quien parsee la salida.
 			if d.IsTTY {
-				if nueva := version.LatestVersion(version.ReleasesURL, version.Version, 2*time.Second); nueva != "" {
+				if nueva := version.LatestVersion(d.ReleasesURL, version.Version, 2*time.Second); nueva != "" {
 					fmt.Fprintf(cmd.OutOrStdout(),
 						"\nHay una versión más reciente: %s. Actualiza con: brew upgrade calliope\n", nueva)
 				}

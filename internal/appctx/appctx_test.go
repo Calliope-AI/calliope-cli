@@ -13,6 +13,7 @@ import (
 
 	"github.com/calliope/calliope-cli/internal/auth"
 	"github.com/calliope/calliope-cli/internal/output"
+	"github.com/calliope/calliope-cli/internal/version"
 )
 
 func commandWithFlags(flags map[string]string) *cobra.Command {
@@ -195,5 +196,18 @@ func TestBuildExigeCredencialYElErrorTraeCodigoYHint(t *testing.T) {
 	}
 	if cliErr.Hint == "" {
 		t.Error("el error debería traer un hint con la acción de recuperación")
+	}
+}
+
+// DefaultDeps es lo único que conecta el proceso real con version.ReleasesURL
+// (Deps.ReleasesURL es inyectable justo para que los tests de cli no
+// dependan de esa constante). Si alguien olvida cablearlo aquí, el binario
+// real seguiría avisando de nuevas versiones porque un string vacío también
+// falla la petición HTTP -> LatestVersion se calla igual, pero calladamente
+// mal: dejaría de consultar el endpoint real sin que ningún test lo notara.
+func TestDefaultDepsUsaElEndpointRealDeVersion(t *testing.T) {
+	d := DefaultDeps()
+	if d.ReleasesURL != version.ReleasesURL {
+		t.Errorf("DefaultDeps().ReleasesURL = %q, se esperaba %q", d.ReleasesURL, version.ReleasesURL)
 	}
 }

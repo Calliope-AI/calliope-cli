@@ -24,6 +24,10 @@ fi
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 
+# El nombre está acoplado al name_template de archives en .goreleaser.yaml
+# ("{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}": sistema en
+# minúsculas, arquitectura literal, versión sin «v»). Tocar uno obliga a
+# tocar el otro.
 archivo="calliope_${version#v}_${so}_${arco}.tar.gz"
 url="https://github.com/${REPO}/releases/download/${version}/${archivo}"
 
@@ -31,8 +35,22 @@ echo "Descargando calliope ${version} (${so}/${arco})…"
 curl -fsSL "$url" -o "$tmp/$archivo"
 curl -fsSL "https://github.com/${REPO}/releases/download/${version}/checksums.txt" -o "$tmp/checksums.txt"
 
-# Se verifica el checksum antes de instalar nada.
-(cd "$tmp" && grep " ${archivo}\$" checksums.txt | shasum -a 256 -c -)
+# sha256sum es lo habitual en Linux; en macOS solo está shasum. Se falla con
+# un mensaje claro si no hay ninguno, en vez de dejar que `command not found`
+# lo explique peor.
+if command -v sha256sum >/dev/null 2>&1; then
+  verificador=(sha256sum -c -)
+elif command -v shasum >/dev/null 2>&1; then
+  verificador=(shasum -a 256 -c -)
+else
+  echo "No se encontró sha256sum ni shasum: no se puede verificar el checksum." >&2
+  exit 1
+fi
+
+# Se verifica el checksum antes de instalar nada. -F porque el nombre del
+# archivo lleva puntos (versión y extensión) que un grep sin -F trataría
+# como «cualquier carácter», no como puntos literales.
+(cd "$tmp" && grep -F -- " ${archivo}" checksums.txt | "${verificador[@]}")
 
 tar -xzf "$tmp/$archivo" -C "$tmp"
 install -m 0755 "$tmp/calliope" "$DESTINO/calliope"

@@ -45,11 +45,12 @@ func TestVersionImprimeLaVersion(t *testing.T) {
 // ImprimeLaVersion no lo comprueba: con Version en "dev" (el valor por
 // defecto en los tests) LatestVersion se calla antes de mirar siquiera el
 // TTY, así que una mutación que borrara el `if d.IsTTY` pasaría inadvertida.
-// Aquí se fuerza una versión "real" y un servidor de prueba para ejercer el
-// camino completo, sin tocar la red real.
+// Aquí se fuerza una versión "real" y un servidor de prueba (inyectado por
+// appctx.Deps.ReleasesURL, no por una variable global) para ejercer el
+// camino completo sin tocar la red real.
 func TestVersionAvisaSoloEnTTY(t *testing.T) {
-	versionOriginal, urlOriginal := version.Version, version.ReleasesURL
-	defer func() { version.Version, version.ReleasesURL = versionOriginal, urlOriginal }()
+	versionOriginal := version.Version
+	defer func() { version.Version = versionOriginal }()
 	version.Version = "v1.2.0"
 
 	llamado := false
@@ -58,11 +59,10 @@ func TestVersionAvisaSoloEnTTY(t *testing.T) {
 		w.Write([]byte(`{"tag_name":"v1.4.0"}`))
 	}))
 	defer srv.Close()
-	version.ReleasesURL = srv.URL
 
 	t.Run("sin TTY no avisa ni consulta la red", func(t *testing.T) {
 		llamado = false
-		cmd := NewRootCmd(appctx.Deps{IsTTY: false})
+		cmd := NewRootCmd(appctx.Deps{IsTTY: false, ReleasesURL: srv.URL})
 		var out bytes.Buffer
 		cmd.SetOut(&out)
 		cmd.SetArgs([]string{"version"})
@@ -80,7 +80,7 @@ func TestVersionAvisaSoloEnTTY(t *testing.T) {
 
 	t.Run("con TTY avisa si hay versión más reciente", func(t *testing.T) {
 		llamado = false
-		cmd := NewRootCmd(appctx.Deps{IsTTY: true})
+		cmd := NewRootCmd(appctx.Deps{IsTTY: true, ReleasesURL: srv.URL})
 		var out bytes.Buffer
 		cmd.SetOut(&out)
 		cmd.SetArgs([]string{"version"})
