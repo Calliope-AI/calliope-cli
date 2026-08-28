@@ -34,6 +34,20 @@ func exactArgs(n int) cobra.PositionalArgs {
 	}
 }
 
+// NoPositionalArgs es el equivalente de cobra.NoArgs con el mismo
+// tratamiento que exactArgs: un CLIError en español, con hint y
+// output.CodeUsage (salida 2), en vez del "unknown command %q for %q" en
+// inglés, sin hint y con salida 1 que da cobra.NoArgs. Se aplica a los 14
+// comandos hoja que no toman argumentos posicionales -algunos con flags,
+// otros sin ninguno- para que un argumento de más no se ignore en
+// silencio: antes, "calliope docs list READY" devolvía todos los
+// documentos y salía con 0, y el agente creía que había filtrado (I4 de la
+// oleada final). Exportada porque `version` vive en el paquete cli, no en
+// commands.
+func NoPositionalArgs() cobra.PositionalArgs {
+	return exactArgs(0)
+}
+
 // groupRunE es el RunE de un grupo de recursos (auth, orgs, config, docs,
 // concepts, rules): invocado pelado muestra la ayuda, con código de salida
 // 0; con un subcomando que no existe, un CLIError en español con hint y

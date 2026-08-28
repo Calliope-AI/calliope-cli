@@ -23,6 +23,7 @@ func NewSchemaCmd(d appctx.Deps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "schema",
 		Short: "Muestra el esquema de la base de datos de la organización",
+		Args:  NoPositionalArgs(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx, err := appctx.Build(cmd, d)
 			if err != nil {

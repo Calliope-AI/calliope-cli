@@ -30,6 +30,7 @@ func NewDoctorCmd(d appctx.Deps) *cobra.Command {
 	return &cobra.Command{
 		Use:   "doctor",
 		Short: "Diagnostica la instalación, la credencial y la conectividad",
+		Args:  NoPositionalArgs(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx, err := appctx.BuildSinCredencial(cmd, d)
 			if err != nil {

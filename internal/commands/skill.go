@@ -14,6 +14,7 @@ func NewSkillCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "skill",
 		Short: "Vuelca la documentación para agentes de esta versión del CLI",
+		Args:  NoPositionalArgs(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			fmt.Fprint(cmd.OutOrStdout(), skills.SkillMD)
 			return nil

@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -95,3 +96,65 @@ func TestGrupoDeRecursosMuestraAyudaPeladoYFallaConSubcomandoDesconocido(t *test
 }
 
 func noop(cmd *cobra.Command, args []string) error { return nil }
+
+// TestComandosHojaSinPosicionalesRechazanArgumentosDeMas es el test de I4 de
+// la oleada final: "calliope docs list READY" ignoraba en silencio "READY",
+// devolvía todos los documentos y salía con 0 -el agente creía que había
+// filtrado. Debía valer para los 14 comandos hoja que no toman argumentos
+// posicionales.
+//
+// En vez de enumerar esos 14 a mano -una lista que puede desincronizarse en
+// cuanto se añada o se cambie un comando-, se derivan del propio catálogo:
+// Catalog ya distingue, vía CommandInfo.Args, qué comandos no declaran
+// ningún placeholder de argumento en su Use ("list", "status", "schema"...
+// tienen Args == ""; "docs show <id>" tiene Args == "<id>"). Cualquier
+// comando hoja con Args == "" debe rechazar un argumento posicional de más
+// con un CLIError de uso (exit 2), igual que ya hace exactArgs para el
+// número incorrecto de argumentos en los que sí toman alguno.
+func TestComandosHojaSinPosicionalesRechazanArgumentosDeMas(t *testing.T) {
+	root := NewRootCmd(appctx.Deps{})
+	catalogo := Catalog(root)
+
+	comprobados := 0
+	for _, c := range catalogo {
+		if strings.TrimSpace(c.Args) != "" {
+			continue // toma argumentos posicionales: no es el caso de I4
+		}
+		comprobados++
+
+		t.Run(c.Path, func(t *testing.T) {
+			fresh := NewRootCmd(appctx.Deps{})
+			var out bytes.Buffer
+			fresh.SetOut(&out)
+			fresh.SetErr(&out)
+			fresh.SetArgs(append(strings.Fields(c.Path), "esto-sobra"))
+
+			err := fresh.Execute()
+			if err == nil {
+				t.Fatalf("%q con un argumento de más debería fallar, no ignorarlo en silencio", c.Path)
+			}
+
+			var cliErr *output.CLIError
+			if !errors.As(err, &cliErr) {
+				t.Fatalf("%q: el error debería ser un *output.CLIError, fue %T (%v)", c.Path, err, err)
+			}
+			if cliErr.Code != output.CodeUsage {
+				t.Errorf("%q: código = %v, se esperaba CodeUsage", c.Path, cliErr.Code)
+			}
+			if cliErr.Hint == "" {
+				t.Errorf("%q: el error debería traer un hint con la forma de uso", c.Path)
+			}
+			if got := output.ExitCodeFor(err); got != 2 {
+				t.Errorf("%q: código de salida = %d, se esperaba 2 (uso incorrecto)", c.Path, got)
+			}
+		})
+	}
+
+	// Ancla el recuento exacto: si sube o baja sin que nadie lo note, es la
+	// señal de que un comando hoja nuevo se ha quedado sin Args, o de que uno
+	// de los 14 ha empezado a declarar (o ha dejado de declarar) argumentos
+	// posicionales sin que este test lo haya visto pasar por su rama.
+	if comprobados != 14 {
+		t.Errorf("comandos hoja sin posicionales comprobados = %d, se esperaban 14", comprobados)
+	}
+}

@@ -32,6 +32,7 @@ func newAuthLoginCmd(d appctx.Deps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "login",
 		Short: "Guarda y verifica una credencial de Calliope",
+		Args:  NoPositionalArgs(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if apiKey == "" {
 				return output.NewError(output.CodeUsage,
@@ -68,6 +69,7 @@ func newAuthLogoutCmd(d appctx.Deps) *cobra.Command {
 	return &cobra.Command{
 		Use:   "logout",
 		Short: "Borra la credencial almacenada",
+		Args:  NoPositionalArgs(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := d.Store.Delete(); err != nil {
 				return err
@@ -82,6 +84,7 @@ func newAuthStatusCmd(d appctx.Deps) *cobra.Command {
 	return &cobra.Command{
 		Use:   "status",
 		Short: "Muestra quién eres y de dónde sale la credencial",
+		Args:  NoPositionalArgs(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx, err := appctx.Build(cmd, d)
 			if err != nil {
@@ -117,6 +120,7 @@ func newAuthTokenCmd(d appctx.Deps) *cobra.Command {
 	return &cobra.Command{
 		Use:   "token",
 		Short: "Imprime la credencial almacenada (para scripts)",
+		Args:  NoPositionalArgs(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cred, _, err := auth.Resolve(d.Env, d.Store)
 			if err != nil {

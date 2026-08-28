@@ -31,6 +31,7 @@ func newDocsListCmd(d appctx.Deps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "Lista los documentos disponibles",
+		Args:  NoPositionalArgs(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx, err := appctx.Build(cmd, d)
 			if err != nil {

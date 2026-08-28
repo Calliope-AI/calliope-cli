@@ -72,6 +72,9 @@ func newVersionCmd(d appctx.Deps) *cobra.Command {
 	return &cobra.Command{
 		Use:   "version",
 		Short: "Muestra la versión de calliope",
+		// I4 de la oleada final: sin esto, "calliope version algo-de-más" lo
+		// ignoraba en silencio y salía con 0.
+		Args: commands.NoPositionalArgs(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			fmt.Fprintf(cmd.OutOrStdout(), "calliope %s (%s, %s)\n",
 				version.Version, version.Commit, version.Date)

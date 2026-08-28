@@ -33,6 +33,7 @@ func newConfigListCmd(d appctx.Deps) *cobra.Command {
 	return &cobra.Command{
 		Use:   "list",
 		Short: "Muestra cada valor con la capa de la que proviene",
+		Args:  NoPositionalArgs(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx, err := appctx.BuildSinCredencial(cmd, d)
 			if err != nil {
@@ -157,6 +158,7 @@ func newConfigPathCmd(d appctx.Deps) *cobra.Command {
 	return &cobra.Command{
 		Use:   "path",
 		Short: "Imprime la ruta del fichero de configuración global",
+		Args:  NoPositionalArgs(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			fmt.Fprintln(cmd.OutOrStdout(), config.GlobalPath(d.Env))
 			return nil

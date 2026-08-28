@@ -32,6 +32,7 @@ func newOrgsListCmd(d appctx.Deps) *cobra.Command {
 	return &cobra.Command{
 		Use:   "list",
 		Short: "Lista las organizaciones accesibles con tu credencial",
+		Args:  NoPositionalArgs(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Listar organizaciones no requiere tener una elegida.
 			ctx, err := appctx.BuildSinCredencial(cmd, d)

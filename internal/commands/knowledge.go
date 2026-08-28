@@ -30,6 +30,7 @@ func newConceptsListCmd(d appctx.Deps) *cobra.Command {
 	return &cobra.Command{
 		Use:   "list",
 		Short: "Lista los conceptos de negocio",
+		Args:  NoPositionalArgs(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx, err := appctx.Build(cmd, d)
 			if err != nil {
@@ -122,6 +123,7 @@ func newRulesListCmd(d appctx.Deps) *cobra.Command {
 	return &cobra.Command{
 		Use:   "list",
 		Short: "Lista las reglas de negocio de la organización",
+		Args:  NoPositionalArgs(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx, err := appctx.Build(cmd, d)
 			if err != nil {
