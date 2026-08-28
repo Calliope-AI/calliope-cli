@@ -35,6 +35,7 @@ func NewRootCmd(d appctx.Deps) *cobra.Command {
 		commands.NewRulesCmd(d),
 		commands.NewSchemaCmd(d),
 		commands.NewQueryCmd(d),
+		commands.NewDoctorCmd(d),
 	)
 	return root
 }
