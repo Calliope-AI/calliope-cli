@@ -11,7 +11,7 @@ import (
 // El plugin apunta al mismo SKILL.md que embebe el binario. Si alguien
 // duplicara el fichero en vez de enlazarlo, las dos copias divergirían.
 func TestElPluginUsaElMismoSkillQueElBinario(t *testing.T) {
-	raiz := raizDelRepo(t)
+	raiz := repoRoot(t)
 
 	delPlugin, err := os.ReadFile(filepath.Join(raiz, ".claude-plugin", "skills", "calliope", "SKILL.md"))
 	if err != nil {
@@ -27,7 +27,7 @@ func TestElPluginUsaElMismoSkillQueElBinario(t *testing.T) {
 }
 
 func TestElManifiestoDelPluginEsValido(t *testing.T) {
-	b, err := os.ReadFile(filepath.Join(raizDelRepo(t), ".claude-plugin", "plugin.json"))
+	b, err := os.ReadFile(filepath.Join(repoRoot(t), ".claude-plugin", "plugin.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -48,7 +48,7 @@ func TestElManifiestoDelPluginEsValido(t *testing.T) {
 // bit ejecutable del hook (o borrar el fichero entero) sin que la suite se
 // entere -- el plugin quedaría con un hook que Claude Code no puede invocar.
 func TestElHookDeSesionEsEjecutable(t *testing.T) {
-	ruta := filepath.Join(raizDelRepo(t), ".claude-plugin", "hooks", "session-start.sh")
+	ruta := filepath.Join(repoRoot(t), ".claude-plugin", "hooks", "session-start.sh")
 	info, err := os.Stat(ruta)
 	if err != nil {
 		t.Fatalf("el hook de sesión debe existir: %v", err)
@@ -65,7 +65,7 @@ func TestElHookDeSesionEsEjecutable(t *testing.T) {
 // commands/calliope.md sin que la suite se entere -- el plugin se instalaría
 // sin el comando /calliope.
 func TestElComandoCalliopeNoEstaVacio(t *testing.T) {
-	b, err := os.ReadFile(filepath.Join(raizDelRepo(t), ".claude-plugin", "commands", "calliope.md"))
+	b, err := os.ReadFile(filepath.Join(repoRoot(t), ".claude-plugin", "commands", "calliope.md"))
 	if err != nil {
 		t.Fatalf("commands/calliope.md debe existir: %v", err)
 	}
@@ -78,7 +78,7 @@ func TestElComandoCalliopeNoEstaVacio(t *testing.T) {
 // bloque hooks.SessionStart de plugin.json sin que la suite se entere -- el
 // plugin se instalaría sin avisar nunca al empezar la sesión.
 func TestElManifiestoDeclaraElHookDeSesion(t *testing.T) {
-	b, err := os.ReadFile(filepath.Join(raizDelRepo(t), ".claude-plugin", "plugin.json"))
+	b, err := os.ReadFile(filepath.Join(repoRoot(t), ".claude-plugin", "plugin.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -107,7 +107,7 @@ func TestElManifiestoDeclaraElHookDeSesion(t *testing.T) {
 	}
 }
 
-func raizDelRepo(t *testing.T) string {
+func repoRoot(t *testing.T) string {
 	t.Helper()
 	dir, err := os.Getwd()
 	if err != nil {

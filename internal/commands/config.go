@@ -35,7 +35,7 @@ func newConfigListCmd(d appctx.Deps) *cobra.Command {
 		Short: "Muestra cada valor con la capa de la que proviene",
 		Args:  NoPositionalArgs(),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx, err := appctx.BuildSinCredencial(cmd, d)
+			ctx, err := appctx.BuildWithoutCredential(cmd, d)
 			if err != nil {
 				return err
 			}
@@ -69,7 +69,7 @@ func newConfigGetCmd(d appctx.Deps) *cobra.Command {
 		Short: "Muestra el valor de una clave",
 		Args:  exactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx, err := appctx.BuildSinCredencial(cmd, d)
+			ctx, err := appctx.BuildWithoutCredential(cmd, d)
 			if err != nil {
 				return err
 			}

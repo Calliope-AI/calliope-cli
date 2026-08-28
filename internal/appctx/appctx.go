@@ -87,7 +87,7 @@ type Context struct {
 // Build monta el contexto y exige credencial y organización. Es lo que usan
 // todos los comandos que hablan con el backend.
 func Build(cmd *cobra.Command, d Deps) (*Context, error) {
-	ctx, err := BuildSinCredencial(cmd, d)
+	ctx, err := BuildWithoutCredential(cmd, d)
 	if err != nil {
 		return nil, err
 	}
@@ -117,10 +117,10 @@ func Build(cmd *cobra.Command, d Deps) (*Context, error) {
 	return ctx, nil
 }
 
-// BuildSinCredencial monta lo que se puede montar sin estar autenticado. Lo
-// usan config, version y doctor, que tienen que funcionar precisamente cuando
-// la autenticación es el problema.
-func BuildSinCredencial(cmd *cobra.Command, d Deps) (*Context, error) {
+// BuildWithoutCredential monta lo que se puede montar sin estar autenticado.
+// Lo usan config, version y doctor, que tienen que funcionar precisamente
+// cuando la autenticación es el problema.
+func BuildWithoutCredential(cmd *cobra.Command, d Deps) (*Context, error) {
 	flags := map[string]string{}
 	if v, _ := cmd.Flags().GetString("org"); v != "" {
 		flags[config.KeyOrg] = v

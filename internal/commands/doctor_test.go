@@ -55,7 +55,7 @@ func checkDetail(t *testing.T, salida []byte, nombre string) string {
 }
 
 // writeGlobalConfig escribe contenido literal en el config.json global que
-// appctx.BuildSinCredencial (vía config.Load) intenta leer, siguiendo la
+// appctx.BuildWithoutCredential (vía config.Load) intenta leer, siguiendo la
 // misma resolución de ruta que config.globalDir: HOME/.config/calliope (sin
 // XDG_CONFIG_HOME, que depsWithServer no fija).
 func writeGlobalConfig(t *testing.T, d appctx.Deps, contenido string) {
@@ -190,7 +190,7 @@ func TestDoctorNuncaImprimeElToken(t *testing.T) {
 }
 
 // TestDoctorConConfigCorruptaInformaEnVezDeFallar cubre el Critical de la
-// ronda 1/5: appctx.BuildSinCredencial devuelve error cuando el config.json
+// ronda 1/5: appctx.BuildWithoutCredential devuelve error cuando el config.json
 // global no parsea, y antes doctor propagaba ese error tal cual (exit 1). Un
 // config.json corrupto es justo el tipo de instalación rota que doctor tiene
 // que diagnosticar, no una que lo tumbe.
@@ -293,7 +293,7 @@ func TestDoctorConConfigCorruptaFuncionaEnLosCincoModos(t *testing.T) {
 			},
 		},
 		{
-			// IsTTY:true a propósito: si la rama --md de outputModeSinConfig
+			// IsTTY:true a propósito: si la rama --md de outputModeWithoutConfig
 			// se perdiera, el modo caería a ModeAuto por defecto, que SÍ
 			// mira IsTTY y renderizaría la tabla de texto en vez del
 			// envelope — a diferencia de ModeMarkdown, que con

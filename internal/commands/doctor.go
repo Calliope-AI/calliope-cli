@@ -32,14 +32,14 @@ func NewDoctorCmd(d appctx.Deps) *cobra.Command {
 		Short: "Diagnostica la instalación, la credencial y la conectividad",
 		Args:  NoPositionalArgs(),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx, err := appctx.BuildSinCredencial(cmd, d)
+			ctx, err := appctx.BuildWithoutCredential(cmd, d)
 			if err != nil {
 				// Una configuración que no carga (p. ej. un config.json
 				// corrupto) es exactamente el tipo de instalación rota que
 				// doctor tiene que diagnosticar, no una que lo tumbe. Sin
 				// *appctx.Context no hay ctx.Render, así que se informa con lo
 				// mínimo que no depende de la configuración.
-				return renderConfigRota(cmd, d, err)
+				return renderBrokenConfig(cmd, d, err)
 			}
 
 			checks := []Check{{
@@ -109,13 +109,13 @@ func NewDoctorCmd(d appctx.Deps) *cobra.Command {
 	}
 }
 
-// renderConfigRota informa de que la configuración no se pudo cargar, sin
+// renderBrokenConfig informa de que la configuración no se pudo cargar, sin
 // devolver ese error tal cual: doctor tiene que seguir informando incluso
 // cuando el propio config.json está roto, que es justo el tipo de
 // instalación rota que existe para diagnosticar. Emite lo mínimo que no
 // depende de la configuración (la versión) más el chequeo que sí falló, y
 // sale con código 0 igual que el resto de doctor.
-func renderConfigRota(cmd *cobra.Command, d appctx.Deps, errCfg error) error {
+func renderBrokenConfig(cmd *cobra.Command, d appctx.Deps, errCfg error) error {
 	checks := []Check{{
 		Name:   "versión",
 		Status: "ok",
@@ -135,14 +135,14 @@ func renderConfigRota(cmd *cobra.Command, d appctx.Deps, errCfg error) error {
 			}
 			return presenter.Table(w, []string{"", "COMPROBACIÓN", "DETALLE"}, filas)
 		},
-	}, outputModeSinConfig(cmd, d))
+	}, outputModeWithoutConfig(cmd, d))
 }
 
-// outputModeSinConfig arma las opciones de render sin pasar por
+// outputModeWithoutConfig arma las opciones de render sin pasar por
 // *config.Config: es la única vía disponible cuando la configuración es
-// precisamente lo que falló al cargar. Replica appctx.outputMode (no
-// exportado) salvo por la capa de cfg.Output(), que aquí no existe.
-func outputModeSinConfig(cmd *cobra.Command, d appctx.Deps) presenter.Options {
+// precisamente lo que falló al cargar. Replica appctx.OutputMode salvo por
+// la capa de cfg.Output(), que aquí no existe.
+func outputModeWithoutConfig(cmd *cobra.Command, d appctx.Deps) presenter.Options {
 	opts := presenter.Options{Mode: presenter.ModeAuto, IsTTY: d.IsTTY, Out: d.Stdout}
 
 	if v, _ := cmd.Flags().GetString("jq"); v != "" {

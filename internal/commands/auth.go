@@ -45,7 +45,7 @@ func newAuthLoginCmd(d appctx.Deps) *cobra.Command {
 
 			// Se valida ANTES de guardar: nunca se persiste una credencial
 			// no verificada.
-			ctx, err := appctx.BuildSinCredencial(cmd, d)
+			ctx, err := appctx.BuildWithoutCredential(cmd, d)
 			if err != nil {
 				return err
 			}

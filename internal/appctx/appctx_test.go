@@ -170,9 +170,9 @@ func TestBuildSinCredencialNoFallaSinAutenticacion(t *testing.T) {
 	deps, _ := testDeps(t, dir)
 	deps.Store = auth.NewFileStore(filepath.Join(t.TempDir(), "vacio.json"))
 
-	ctx, err := BuildSinCredencial(commandWithFlags(nil), deps)
+	ctx, err := BuildWithoutCredential(commandWithFlags(nil), deps)
 	if err != nil {
-		t.Fatalf("BuildSinCredencial no debe exigir credencial: %v", err)
+		t.Fatalf("BuildWithoutCredential no debe exigir credencial: %v", err)
 	}
 	if ctx.Cred.Valid() {
 		t.Error("no debería haber credencial")
