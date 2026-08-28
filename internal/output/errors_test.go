@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 )
 
@@ -222,5 +223,29 @@ func TestWriteErrorErrorGenericoModoTexto(t *testing.T) {
 	output := buf.String()
 	if !bytes.Contains([]byte(output), []byte("unknown command")) {
 		t.Errorf("output debe incluir mensaje del error: %q", output)
+	}
+}
+
+// TestWriteErrorModoJSONNoEscapaHTML es el simétrico de
+// presenter.TestRenderJSONNoEscapaHTML: un hint con "<" y ">" (el
+// placeholder típico de un argumento, p.ej. "calliope orgs use
+// <organización>") debe salir literal en el JSON de error, no como
+// < y >. Antes de esta ronda, WriteError serializaba con
+// json.Marshal a secas -un serializador JSON distinto del que usa
+// presenter.writeJSON- así que el mismo contrato de envelope se comportaba
+// distinto en JSON según el resultado fuera éxito o error.
+func TestWriteErrorModoJSONNoEscapaHTML(t *testing.T) {
+	buf := &bytes.Buffer{}
+	err := NewError(CodeUsage, "Falta un argumento.", "Uso: calliope orgs use <organización>")
+	if err := WriteError(buf, err, true); err != nil {
+		t.Fatalf("WriteError: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "<organización>") {
+		t.Errorf(`el JSON debe llevar "<organización>" literal, se obtuvo: %q`, output)
+	}
+	if strings.Contains(output, `\u003c`) || strings.Contains(output, `\u003e`) {
+		t.Errorf("el JSON escapó < o > como \\u003c/\\u003e: %q", output)
 	}
 }

@@ -90,14 +90,16 @@ func WriteError(w io.Writer, err error, jsonMode bool) error {
 	}
 
 	if jsonMode {
-		// En modo JSON, serializar el envelope completo.
-		envelope := cliErr.Envelope()
-		b, err := json.Marshal(envelope)
-		if err != nil {
-			return err
-		}
-		_, err = fmt.Fprintln(w, string(b))
-		return err
+		// En modo JSON, serializar el envelope completo. Igual que
+		// presenter.writeJSON, se usa un Encoder con SetEscapeHTML(false) en
+		// vez de json.Marshal: si no, "<" y ">" salen como \u003c/\u003e, y
+		// un hint como "calliope orgs use <organización>" queda ilegible para
+		// el agente o la persona que lee la salida cruda. Encode ya añade su
+		// propio salto de línea final (igual que antes hacía Fprintln), así
+		// que no hace falta envolverlo aparte.
+		enc := json.NewEncoder(w)
+		enc.SetEscapeHTML(false)
+		return enc.Encode(cliErr.Envelope())
 	}
 
 	// En modo texto, imprimir el mensaje y el hint por separado.
