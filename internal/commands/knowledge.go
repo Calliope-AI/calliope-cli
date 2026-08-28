@@ -14,10 +14,13 @@ import (
 
 // NewConceptsCmd construye el grupo `concepts`: qué datos existen, en lenguaje
 // de negocio. Es lo primero que debe mirar un agente antes de preguntar.
+// Invocado pelado muestra la ayuda (exit 0); con un subcomando que no
+// existe, un error de uso (exit 2): ver groupRunE en args.go.
 func NewConceptsCmd(d appctx.Deps) *cobra.Command {
 	grupo := &cobra.Command{
 		Use:   "concepts",
 		Short: "Explora los conceptos de negocio de la ontología",
+		RunE:  groupRunE,
 	}
 	grupo.AddCommand(newConceptsListCmd(d), newConceptsShowCmd(d))
 	return grupo
@@ -102,11 +105,14 @@ func newConceptsShowCmd(d appctx.Deps) *cobra.Command {
 	}
 }
 
-// NewRulesCmd construye el grupo `rules`.
+// NewRulesCmd construye el grupo `rules`. Invocado pelado muestra la ayuda
+// (exit 0); con un subcomando que no existe, un error de uso (exit 2): ver
+// groupRunE en args.go.
 func NewRulesCmd(d appctx.Deps) *cobra.Command {
 	grupo := &cobra.Command{
 		Use:   "rules",
 		Short: "Consulta las reglas de negocio compartidas",
+		RunE:  groupRunE,
 	}
 	grupo.AddCommand(newRulesListCmd(d))
 	return grupo

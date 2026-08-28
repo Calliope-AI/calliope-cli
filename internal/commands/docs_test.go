@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -14,15 +15,40 @@ import (
 	"github.com/calliope/calliope-cli/internal/sdk"
 )
 
-// TestDocsEsUnGrupoSinRunE comprueba que `docs` es un grupo de recursos: sin
-// RunE ni Run, invocarlo pelado debe mostrar la ayuda en vez de ejecutar nada.
-func TestDocsEsUnGrupoSinRunE(t *testing.T) {
+// TestDocsEsUnGrupoDeRecursos comprueba el comportamiento de `docs` como
+// grupo de recursos (C3 de la oleada final): pelado muestra la ayuda con
+// exit 0; con un subcomando que no existe, falla con exit 2. Ver el
+// comentario equivalente en auth_test.go sobre por qué esto ya no se
+// asevera comprobando que RunE sea nil.
+func TestDocsEsUnGrupoDeRecursos(t *testing.T) {
 	cmd := NewDocsCmd(appctx.Deps{})
-	if cmd.RunE != nil || cmd.Run != nil {
-		t.Error("docs es un grupo: invocarlo pelado debe mostrar la ayuda, no ejecutar nada")
-	}
 	if len(cmd.Commands()) != 3 {
 		t.Errorf("docs debe tener 3 subcomandos (list, show, search), tiene %d", len(cmd.Commands()))
+	}
+
+	var out bytes.Buffer
+	root := testRoot(NewDocsCmd(appctx.Deps{}), &out)
+	root.SetArgs([]string{"docs"})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("docs pelado debe salir con 0 (ayuda), dio error: %v", err)
+	}
+	if !strings.Contains(out.String(), "Usage:") {
+		t.Errorf("docs pelado debe imprimir la ayuda, se obtuvo: %q", out.String())
+	}
+
+	out.Reset()
+	root = testRoot(NewDocsCmd(appctx.Deps{}), &out)
+	root.SetArgs([]string{"docs", "esto-no-existe"})
+	err := root.Execute()
+	var cliErr *output.CLIError
+	if !errors.As(err, &cliErr) {
+		t.Fatalf("docs con subcomando desconocido: el error debería ser un *output.CLIError, fue %T (%v)", err, err)
+	}
+	if cliErr.Hint == "" {
+		t.Error("el error debería traer un hint")
+	}
+	if got := output.ExitCodeFor(err); got != 2 {
+		t.Errorf("código de salida = %d, se esperaba 2 (uso incorrecto)", got)
 	}
 }
 

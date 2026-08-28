@@ -58,13 +58,42 @@ func depsWithServer(t *testing.T, h http.HandlerFunc) (appctx.Deps, *bytes.Buffe
 	return d, &stdout, st
 }
 
-func TestAuthEsUnGrupoSinRunE(t *testing.T) {
+// TestAuthEsUnGrupoDeRecursos comprueba el comportamiento de `auth` como
+// grupo de recursos (C3 de la oleada final): pelado muestra la ayuda con
+// exit 0; con un subcomando que no existe, falla con exit 2. Antes este test
+// aseveraba el MECANISMO (RunE == nil) en vez del comportamiento, y ahí se
+// coló el bug: cobra decide si el comando es Runnable() -y por tanto si
+// muestra la ayuda- antes de validar los argumentos, así que "auth typo"
+// mostraba la misma ayuda que "auth" solo, con exit 0.
+func TestAuthEsUnGrupoDeRecursos(t *testing.T) {
 	cmd := NewAuthCmd(appctx.Deps{})
-	if cmd.RunE != nil || cmd.Run != nil {
-		t.Error("auth es un grupo: invocarlo pelado debe mostrar la ayuda, no ejecutar nada")
-	}
 	if len(cmd.Commands()) == 0 {
 		t.Error("auth debe tener subcomandos")
+	}
+
+	var out bytes.Buffer
+	root := testRoot(NewAuthCmd(appctx.Deps{}), &out)
+	root.SetArgs([]string{"auth"})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("auth pelado debe salir con 0 (ayuda), dio error: %v", err)
+	}
+	if !strings.Contains(out.String(), "Usage:") {
+		t.Errorf("auth pelado debe imprimir la ayuda, se obtuvo: %q", out.String())
+	}
+
+	out.Reset()
+	root = testRoot(NewAuthCmd(appctx.Deps{}), &out)
+	root.SetArgs([]string{"auth", "esto-no-existe"})
+	err := root.Execute()
+	var cliErr *output.CLIError
+	if !errors.As(err, &cliErr) {
+		t.Fatalf("auth con subcomando desconocido: el error debería ser un *output.CLIError, fue %T (%v)", err, err)
+	}
+	if cliErr.Hint == "" {
+		t.Error("el error debería traer un hint")
+	}
+	if got := output.ExitCodeFor(err); got != 2 {
+		t.Errorf("código de salida = %d, se esperaba 2 (uso incorrecto)", got)
 	}
 }
 

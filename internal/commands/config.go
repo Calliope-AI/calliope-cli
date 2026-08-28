@@ -16,11 +16,14 @@ import (
 	"github.com/calliope/calliope-cli/internal/presenter"
 )
 
-// NewConfigCmd construye el grupo `config`.
+// NewConfigCmd construye el grupo `config`. Invocado pelado muestra la ayuda
+// (exit 0); con un subcomando que no existe, un error de uso (exit 2): ver
+// groupRunE en args.go.
 func NewConfigCmd(d appctx.Deps) *cobra.Command {
 	grupo := &cobra.Command{
 		Use:   "config",
 		Short: "Consulta y modifica la configuración de calliope",
+		RunE:  groupRunE,
 	}
 	grupo.AddCommand(newConfigListCmd(d), newConfigGetCmd(d), newConfigSetCmd(d), newConfigPathCmd(d))
 	return grupo

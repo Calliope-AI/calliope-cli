@@ -15,11 +15,14 @@ import (
 	"github.com/calliope/calliope-cli/internal/presenter"
 )
 
-// NewOrgsCmd construye el grupo `orgs`.
+// NewOrgsCmd construye el grupo `orgs`. Invocado pelado muestra la ayuda
+// (exit 0); con un subcomando que no existe, un error de uso (exit 2): ver
+// groupRunE en args.go.
 func NewOrgsCmd(d appctx.Deps) *cobra.Command {
 	grupo := &cobra.Command{
 		Use:   "orgs",
 		Short: "Lista y selecciona la organización activa",
+		RunE:  groupRunE,
 	}
 	grupo.AddCommand(newOrgsListCmd(d), newOrgsUseCmd(d))
 	return grupo

@@ -34,6 +34,38 @@ func exactArgs(n int) cobra.PositionalArgs {
 	}
 }
 
+// groupRunE es el RunE de un grupo de recursos (auth, orgs, config, docs,
+// concepts, rules): invocado pelado muestra la ayuda, con código de salida
+// 0; con un subcomando que no existe, un CLIError en español con hint y
+// código de salida 2 (C3 de la oleada final).
+//
+// El spec (§5) decía que los grupos "no definen RunE": invocarlos pelados
+// muestra la ayuda porque es lo que Cobra hace solo cuando un comando tiene
+// subcomandos y no RunE. Pero Cobra decide si un comando es Runnable() -y
+// por tanto si cae al flag.ErrHelp que muestra la ayuda- ANTES de llegar a
+// ValidateArgs (ver Command.execute en cobra: el chequeo "if
+// !c.Runnable() { return flag.ErrHelp }" precede a
+// "c.ValidateArgs(argWoFlags)"). Así que un grupo sin RunE no podía
+// distinguir "invocado sin argumentos" de "invocado con un argumento que no
+// casa con ningún subcomando": las dos rutas llegaban con Runnable()==false
+// y las dos mostraban la ayuda con exit 0. "calliope docs typo" no era un
+// error de ningún tipo: mostraba la misma ayuda que "calliope docs" solo.
+//
+// La invariante de la sección 5 era un medio (grupos sin RunE) para un fin
+// (bare → ayuda), no el fin en sí; el §6.3 exige exit 2 para uso incorrecto.
+// Dar RunE al grupo lo hace Runnable() y deja que Cobra llegue hasta aquí
+// con los argumentos ya resueltos, así que este RunE puede por fin ver la
+// diferencia entre las dos rutas y decidir el comportamiento correcto para
+// cada una.
+func groupRunE(cmd *cobra.Command, args []string) error {
+	if len(args) == 0 {
+		return cmd.Help()
+	}
+	return output.NewError(output.CodeUsage,
+		fmt.Sprintf("%q no es un subcomando de %q.", args[0], cmd.CommandPath()),
+		"Consulta los subcomandos disponibles con: "+cmd.CommandPath()+" --help")
+}
+
 // usageLine devuelve la forma de uso completa de cmd (ruta de padres + Use),
 // recortando el sufijo " [flags]" que Cobra añade en cuanto el comando tiene
 // algún flag disponible -aquí, siempre: los cinco flags globales son

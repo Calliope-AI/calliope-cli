@@ -13,11 +13,14 @@ import (
 	"github.com/calliope/calliope-cli/internal/sdk"
 )
 
-// NewDocsCmd construye el grupo `docs`.
+// NewDocsCmd construye el grupo `docs`. Invocado pelado muestra la ayuda
+// (exit 0); con un subcomando que no existe, un error de uso (exit 2): ver
+// groupRunE en args.go.
 func NewDocsCmd(d appctx.Deps) *cobra.Command {
 	grupo := &cobra.Command{
 		Use:   "docs",
 		Short: "Consulta la documentación de la organización",
+		RunE:  groupRunE,
 	}
 	grupo.AddCommand(newDocsListCmd(d), newDocsShowCmd(d), newDocsSearchCmd(d))
 	return grupo

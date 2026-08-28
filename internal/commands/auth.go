@@ -14,12 +14,14 @@ import (
 	"github.com/calliope/calliope-cli/internal/sdk"
 )
 
-// NewAuthCmd construye el grupo `auth`. Sin RunE: invocarlo pelado muestra la
-// ayuda, que es lo que hace Cobra con un comando que solo tiene subcomandos.
+// NewAuthCmd construye el grupo `auth`. Invocado pelado muestra la ayuda
+// (exit 0); con un subcomando que no existe, un error de uso (exit 2): ver
+// groupRunE en args.go.
 func NewAuthCmd(d appctx.Deps) *cobra.Command {
 	grupo := &cobra.Command{
 		Use:   "auth",
 		Short: "Gestiona la autenticación con Calliope Data",
+		RunE:  groupRunE,
 	}
 	grupo.AddCommand(newAuthLoginCmd(d), newAuthLogoutCmd(d), newAuthStatusCmd(d), newAuthTokenCmd(d))
 	return grupo

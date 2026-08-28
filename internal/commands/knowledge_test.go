@@ -1,36 +1,68 @@
 package commands
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"net/http"
 	"strings"
 	"testing"
 
+	"github.com/spf13/cobra"
+
 	"github.com/calliope/calliope-cli/internal/appctx"
 	"github.com/calliope/calliope-cli/internal/auth"
 	"github.com/calliope/calliope-cli/internal/output"
 )
 
-// TestConceptsYRulesSonGruposSinRunE comprueba que `concepts` y `rules` son
-// grupos de recursos: sin RunE ni Run, invocarlos pelados debe mostrar la
-// ayuda en vez de ejecutar nada. También se comprueba el número de
-// subcomandos: sin esto, olvidar un AddCommand pasaría inadvertido.
-func TestConceptsYRulesSonGruposSinRunE(t *testing.T) {
+// TestConceptsYRulesSonGruposDeRecursos comprueba el comportamiento de
+// `concepts` y `rules` como grupos de recursos (C3 de la oleada final):
+// pelados muestran la ayuda con exit 0; con un subcomando que no existe,
+// fallan con exit 2. También se comprueba el número de subcomandos: sin
+// esto, olvidar un AddCommand pasaría inadvertido. Ver el comentario
+// equivalente en auth_test.go sobre por qué esto ya no se asevera
+// comprobando que RunE sea nil.
+func TestConceptsYRulesSonGruposDeRecursos(t *testing.T) {
 	concepts := NewConceptsCmd(emptyDeps())
-	if concepts.RunE != nil || concepts.Run != nil {
-		t.Error("concepts es un grupo: no debe definir RunE")
-	}
 	if len(concepts.Commands()) != 2 {
 		t.Errorf("concepts debe tener 2 subcomandos (list, show), tiene %d", len(concepts.Commands()))
 	}
-
 	rules := NewRulesCmd(emptyDeps())
-	if rules.RunE != nil || rules.Run != nil {
-		t.Error("rules es un grupo: no debe definir RunE")
-	}
 	if len(rules.Commands()) != 1 {
 		t.Errorf("rules debe tener 1 subcomando (list), tiene %d", len(rules.Commands()))
+	}
+
+	for _, caso := range []struct {
+		nombre string
+		nuevo  func() *cobra.Command
+	}{
+		{"concepts", func() *cobra.Command { return NewConceptsCmd(emptyDeps()) }},
+		{"rules", func() *cobra.Command { return NewRulesCmd(emptyDeps()) }},
+	} {
+		var out bytes.Buffer
+		root := testRoot(caso.nuevo(), &out)
+		root.SetArgs([]string{caso.nombre})
+		if err := root.Execute(); err != nil {
+			t.Fatalf("%s pelado debe salir con 0 (ayuda), dio error: %v", caso.nombre, err)
+		}
+		if !strings.Contains(out.String(), "Usage:") {
+			t.Errorf("%s pelado debe imprimir la ayuda, se obtuvo: %q", caso.nombre, out.String())
+		}
+
+		out.Reset()
+		root = testRoot(caso.nuevo(), &out)
+		root.SetArgs([]string{caso.nombre, "esto-no-existe"})
+		err := root.Execute()
+		var cliErr *output.CLIError
+		if !errors.As(err, &cliErr) {
+			t.Fatalf("%s con subcomando desconocido: el error debería ser un *output.CLIError, fue %T (%v)", caso.nombre, err, err)
+		}
+		if cliErr.Hint == "" {
+			t.Errorf("%s: el error debería traer un hint", caso.nombre)
+		}
+		if got := output.ExitCodeFor(err); got != 2 {
+			t.Errorf("%s: código de salida = %d, se esperaba 2 (uso incorrecto)", caso.nombre, got)
+		}
 	}
 }
 
