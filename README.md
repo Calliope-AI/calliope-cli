@@ -135,14 +135,14 @@ Con honestidad, esto es lo que falta:
   confirmar el resto de campos de `Me` —empezando por `id`, el que `auth
   status` expone como `"userId"`— hace falta además correr
   `calliope auth status --json` a mano contra una organización real.
-- **El release automático no se ha ejecutado nunca de verdad.** La
-  configuración sí está verificada: `goreleaser check` pasa limpio y un
-  `goreleaser release --snapshot` local produce las seis combinaciones de
-  sistema y arquitectura, con nombres que coinciden con los que reconstruye
-  `install.sh` y con la versión inyectada en el binario. Lo que falta es el
-  camino real: hace falta crear los repositorios `Calliope-AI/homebrew-tap` y
-  `Calliope-AI/scoop-bucket`, y el secreto `TAP_GITHUB_TOKEN` con permiso de
-  escritura sobre ambos, antes del primer tag `v*`.
+- **El release automático ya está probado de extremo a extremo.** El tag
+  `v0.0.1-test` produjo los 13 artefactos (6 archivos, 6 paquetes deb/rpm/apk
+  y `checksums.txt`), escribió la fórmula en `Calliope-AI/homebrew-tap` y el
+  manifiesto en `Calliope-AI/scoop-bucket`, y
+  `brew install Calliope-AI/tap/calliope` instaló un binario que arranca con
+  la versión inyectada. `goreleaser check` pasa limpio y el workflow fija
+  `version: "~> v2.18"` para que una deprecación futura no rompa un release
+  en marcha.
 
 - **El smoke de extremo a extremo nunca se ha ejecutado contra un backend
   real.** `test/e2e/smoke_test.go` compila y sus tests se saltan
