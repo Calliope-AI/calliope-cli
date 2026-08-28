@@ -43,7 +43,7 @@ func newConceptsListCmd(d appctx.Deps) *cobra.Command {
 
 			return ctx.Render(presenter.Result{
 				Envelope: output.OKEnvelope(grafo.Concepts,
-					fmt.Sprintf("%d conceptos", len(grafo.Concepts)),
+					pluralize(len(grafo.Concepts), "concepto", "conceptos"),
 					output.Breadcrumb{Action: "detalle", Cmd: "calliope concepts show <id>"},
 					output.Breadcrumb{Action: "preguntar", Cmd: "calliope ask \"<pregunta>\""}),
 				Text: func(w io.Writer) error {
@@ -79,7 +79,7 @@ func newConceptsShowCmd(d appctx.Deps) *cobra.Command {
 
 			return ctx.Render(presenter.Result{
 				Envelope: output.OKEnvelope(det,
-					fmt.Sprintf("%s · %d atributos", det.Concept.Name, len(det.Attributes)),
+					fmt.Sprintf("%s · %s", det.Concept.Name, pluralize(len(det.Attributes), "atributo", "atributos")),
 					output.Breadcrumb{Action: "preguntar", Cmd: "calliope ask \"<pregunta sobre " + det.Concept.Name + ">\""}),
 				Text: func(w io.Writer) error {
 					if _, err := fmt.Fprintf(w, "%s\n", det.Concept.Name); err != nil {
@@ -135,7 +135,7 @@ func newRulesListCmd(d appctx.Deps) *cobra.Command {
 			}
 
 			return ctx.Render(presenter.Result{
-				Envelope: output.OKEnvelope(reglas, fmt.Sprintf("%d reglas", len(reglas)),
+				Envelope: output.OKEnvelope(reglas, pluralize(len(reglas), "regla", "reglas"),
 					output.Breadcrumb{Action: "conceptos", Cmd: "calliope concepts list"}),
 				Text: func(w io.Writer) error {
 					filas := make([][]string, 0, len(reglas))

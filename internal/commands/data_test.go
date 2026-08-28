@@ -408,8 +408,10 @@ func TestQueryEnviaElSQLYDevuelveFilas(t *testing.T) {
 	if env.Data[0]["mes"] != "2026-01" || env.Data[0]["ventas"] != float64(1200) {
 		t.Errorf("fila inesperada: %+v", env.Data[0])
 	}
-	if env.Summary != "1 filas" {
-		t.Errorf("summary = %q, se esperaba %q", env.Summary, "1 filas")
+	// Singular a propósito (Diferidos #12 y #16): con 1 fila, "1 filas"
+	// pluraliza mal.
+	if env.Summary != "1 fila" {
+		t.Errorf("summary = %q, se esperaba %q", env.Summary, "1 fila")
 	}
 	if len(env.Breadcrumbs) != 1 || env.Breadcrumbs[0].Action != "esquema" || env.Breadcrumbs[0].Cmd != "calliope schema" {
 		t.Errorf("breadcrumb inesperado: %+v", env.Breadcrumbs)

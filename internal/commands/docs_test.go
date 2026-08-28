@@ -127,8 +127,10 @@ func TestDocsListPasaLosFiltros(t *testing.T) {
 	if doc["sizeBytes"] != float64(1) {
 		t.Errorf("sizeBytes = %v, se esperaba 1", doc["sizeBytes"])
 	}
-	if env.Summary != "1 de 1 documentos" {
-		t.Errorf("summary = %q, se esperaba %q", env.Summary, "1 de 1 documentos")
+	// Singular a propósito (Diferidos #12 y #16): con TotalSize=1, "1 de 1
+	// documentos" pluraliza mal.
+	if env.Summary != "1 de 1 documento" {
+		t.Errorf("summary = %q, se esperaba %q", env.Summary, "1 de 1 documento")
 	}
 	quiero := map[string]string{
 		"detalle": "calliope docs show <id>",
@@ -478,8 +480,10 @@ func TestDocsSearchUsaPOST(t *testing.T) {
 	if len(env.Data) != 1 || env.Data[0]["documentId"] != "doc-1" || env.Data[0]["score"] != 0.9 {
 		t.Errorf("fragmento inesperado: %+v", env.Data)
 	}
-	if env.Summary != "1 fragmentos" {
-		t.Errorf("summary = %q, se esperaba %q", env.Summary, "1 fragmentos")
+	// Singular a propósito (Diferidos #12 y #16): con 1 fragmento, "1
+	// fragmentos" pluraliza mal.
+	if env.Summary != "1 fragmento" {
+		t.Errorf("summary = %q, se esperaba %q", env.Summary, "1 fragmento")
 	}
 	if len(env.Breadcrumbs) != 1 || env.Breadcrumbs[0].Action != "documento" ||
 		env.Breadcrumbs[0].Cmd != "calliope docs show <id>" {

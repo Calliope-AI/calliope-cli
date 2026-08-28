@@ -44,7 +44,7 @@ func newDocsListCmd(d appctx.Deps) *cobra.Command {
 
 			return ctx.Render(presenter.Result{
 				Envelope: output.OKEnvelope(page.Content,
-					fmt.Sprintf("%d de %d documentos", len(page.Content), page.TotalSize),
+					fmt.Sprintf("%d de %s", len(page.Content), pluralize(page.TotalSize, "documento", "documentos")),
 					output.Breadcrumb{Action: "detalle", Cmd: "calliope docs show <id>"},
 					output.Breadcrumb{Action: "buscar", Cmd: "calliope docs search \"<consulta>\""}),
 				Text: func(w io.Writer) error {
@@ -111,7 +111,7 @@ func newDocsSearchCmd(d appctx.Deps) *cobra.Command {
 			}
 
 			return ctx.Render(presenter.Result{
-				Envelope: output.OKEnvelope(res, fmt.Sprintf("%d fragmentos", len(res)),
+				Envelope: output.OKEnvelope(res, pluralize(len(res), "fragmento", "fragmentos"),
 					output.Breadcrumb{Action: "documento", Cmd: "calliope docs show <id>"}),
 				Text: func(w io.Writer) error {
 					filas := make([][]string, 0, len(res))

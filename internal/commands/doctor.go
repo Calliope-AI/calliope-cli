@@ -193,7 +193,10 @@ func summaryOf(cs []Check) string {
 	if fallos == 0 {
 		return "todo correcto"
 	}
-	return fmt.Sprintf("%d de %d comprobaciones fallan", fallos, len(cs))
+	// El verbo se queda en plural ("fallan") sin acordarlo con len(cs):
+	// doctor siempre emite al menos dos comprobaciones (versión + otra),
+	// así que len(cs) nunca es 1 en la práctica.
+	return fmt.Sprintf("%d de %s fallan", fallos, pluralize(len(cs), "comprobación", "comprobaciones"))
 }
 
 func symbol(estado string) string {

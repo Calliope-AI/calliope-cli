@@ -63,9 +63,11 @@ func TestAskDevuelveTextoYFuentes(t *testing.T) {
 		env.Data.Sources[0].DocumentID != "doc-1" {
 		t.Errorf("fuente inesperada: %+v", env.Data.Sources)
 	}
-	// El resumen cuenta las fuentes citadas: es lo primero que lee un agente.
-	if env.Summary != "1 fuentes citadas" {
-		t.Errorf("summary = %q, se esperaba %q", env.Summary, "1 fuentes citadas")
+	// El resumen cuenta las fuentes citadas: es lo primero que lee un
+	// agente. Singular a propósito (Diferidos #12 y #16): con 1 fuente,
+	// "1 fuentes citadas" pluraliza mal.
+	if env.Summary != "1 fuente citada" {
+		t.Errorf("summary = %q, se esperaba %q", env.Summary, "1 fuente citada")
 	}
 	// Breadcrumbs concretos, no solo "hay alguno": son la navegación que el
 	// SKILL.md espera que un agente siga tras `ask`.

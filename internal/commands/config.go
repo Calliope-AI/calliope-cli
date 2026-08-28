@@ -42,7 +42,7 @@ func newConfigListCmd(d appctx.Deps) *cobra.Command {
 			todos := ctx.Cfg.All()
 
 			return ctx.Render(presenter.Result{
-				Envelope: output.OKEnvelope(todos, fmt.Sprintf("%d valores", len(todos)),
+				Envelope: output.OKEnvelope(todos, pluralize(len(todos), "valor", "valores"),
 					output.Breadcrumb{Action: "cambiar", Cmd: "calliope config set <clave> <valor>"}),
 				Text: func(w io.Writer) error {
 					claves := make([]string, 0, len(todos))

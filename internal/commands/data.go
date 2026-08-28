@@ -48,7 +48,7 @@ func NewSchemaCmd(d appctx.Deps) *cobra.Command {
 			}
 
 			return ctx.Render(presenter.Result{
-				Envelope: output.OKEnvelope(tablas, fmt.Sprintf("%d tablas", len(tablas)),
+				Envelope: output.OKEnvelope(tablas, pluralize(len(tablas), "tabla", "tablas"),
 					output.Breadcrumb{Action: "consultar", Cmd: "calliope query \"SELECT …\""},
 					output.Breadcrumb{Action: "preguntar", Cmd: "calliope ask \"<pregunta>\""}),
 				Text: func(w io.Writer) error {
@@ -150,7 +150,7 @@ func NewQueryCmd(d appctx.Deps) *cobra.Command {
 			}
 
 			return ctx.Render(presenter.Result{
-				Envelope: output.OKEnvelope(filas, fmt.Sprintf("%d filas", len(filas)),
+				Envelope: output.OKEnvelope(filas, pluralize(len(filas), "fila", "filas"),
 					output.Breadcrumb{Action: "esquema", Cmd: "calliope schema"}),
 				Text: func(w io.Writer) error {
 					if len(filas) == 0 {

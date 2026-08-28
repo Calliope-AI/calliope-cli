@@ -45,7 +45,7 @@ func NewAskCmd(d appctx.Deps) *cobra.Command {
 					"Reformula la pregunta, o mira qué datos existen con: calliope concepts list")
 			}
 
-			resumen := fmt.Sprintf("%d fuentes citadas", len(resp.Sources))
+			resumen := pluralize(len(resp.Sources), "fuente citada", "fuentes citadas")
 			return ctx.Render(presenter.Result{
 				Envelope: output.OKEnvelope(resp, resumen,
 					output.Breadcrumb{Action: "documento", Cmd: "calliope docs show <id>"},

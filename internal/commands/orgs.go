@@ -51,7 +51,7 @@ func newOrgsListCmd(d appctx.Deps) *cobra.Command {
 			}
 
 			return ctx.Render(presenter.Result{
-				Envelope: output.OKEnvelope(orgs, fmt.Sprintf("%d organizaciones", len(orgs)),
+				Envelope: output.OKEnvelope(orgs, pluralize(len(orgs), "organización", "organizaciones"),
 					output.Breadcrumb{Action: "usar", Cmd: "calliope orgs use <nombre>"}),
 				Text: func(w io.Writer) error {
 					filas := make([][]string, 0, len(orgs))
