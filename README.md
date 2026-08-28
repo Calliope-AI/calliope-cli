@@ -112,13 +112,44 @@ Con honestidad, esto es lo que falta:
   `CALLIOPE_TOKEN`, para inyectar un token ya obtenido por otra vía) pero no
   hay un comando que lleve a un usuario a través de un flujo de login
   interactivo.
+- **Tres grupos de tipos nunca se han confirmado contra el backend real.**
+  `Me` (lo que usa `auth status`), `Organization` (lo que usa `orgs list`) y
+  `SchemaResponse`/`SchemaTable`/`SchemaColumn` (lo que usa `schema`), todos
+  en `internal/sdk/models.go`, no salen de una respuesta real del backend ni
+  del contrato verificado en `calliope-data-mcp`: se dedujeron leyendo los
+  tipos TypeScript de `calliope-data-ui` (`BackendUser`, `Organization`,
+  `SchemaResponse`/`SchemaTable`/`SchemaColumn`), que es el cliente que hoy
+  consume esos mismos endpoints — una fuente razonable, pero no lo mismo que
+  haberlos visto responder. Si el backend real usa otro nombre de campo para
+  alguno de ellos, el síntoma **no es un error**: `encoding/json` deja en
+  blanco el campo que no encuentra y el comando sigue devolviendo
+  `"ok": true`, así que `orgs list`, `auth status` o `schema` saldrían con
+  valores vacíos (nombres, IDs, columnas) sin ningún aviso. Quien vaya a
+  scriptear contra esas tres salidas debería saberlo antes de confiar en
+  ellas a ciegas. La forma de confirmarlos es ejecutar el smoke
+  (`test/e2e/smoke_test.go`) con una API key real: `TestCadenaCompletaDeAgente`
+  ya ejercita `orgs list` (`Organization`) y `schema`
+  (`SchemaResponse`/`SchemaTable`/`SchemaColumn`) contra el backend de
+  verdad, y `doctor` ejercita `Me.Email` de paso, en su comprobación de
+  conectividad. Ninguno de los dos tests llama a `auth status`, así que para
+  confirmar el resto de campos de `Me` —empezando por `id`, el que `auth
+  status` expone como `"userId"`— hace falta además correr
+  `calliope auth status --json` a mano contra una organización real.
 - **La configuración de GoReleaser no se ha verificado.** `.goreleaser.yaml`
   no se ha comprobado con `goreleaser check` ni con `goreleaser build
   --snapshot` porque la herramienta no estaba disponible al escribir esto.
-  Antes de depender del release automático conviene ejecutar ambos.
+  Antes de depender del release automático conviene ejecutar ambos; además,
+  antes del primer release hay que crear el secreto `TAP_GITHUB_TOKEN` en
+  este repositorio (`.goreleaser.yaml` lo exige para `brews[].repository` y
+  `scoops[].repository`: el `GITHUB_TOKEN` por defecto del workflow no tiene
+  permiso de escritura sobre `calliope/homebrew-tap` ni
+  `calliope/scoop-bucket`), o la publicación en el tap de Homebrew y en el
+  bucket de Scoop fallará aunque el resto del release funcione.
 - **El smoke de extremo a extremo nunca se ha ejecutado contra un backend
   real.** `test/e2e/smoke_test.go` compila y sus tests se saltan
   correctamente sin credenciales, pero nadie lo ha corrido todavía con
   `CALLIOPE_E2E=1` y una organización real: no hay credenciales de Calliope
   disponibles en el entorno donde se escribió. Es la primera comprobación
-  pendiente en cuanto existan.
+  pendiente en cuanto existan, y de paso confirmaría los tipos `Me`,
+  `Organization` y `SchemaResponse`/`SchemaTable`/`SchemaColumn` del bullet
+  de más arriba.
