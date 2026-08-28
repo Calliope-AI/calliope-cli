@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"strings"
 	"testing"
+
+	"github.com/calliope/calliope-cli/internal/appctx"
 )
 
 func TestRootMuestraAyudaSinArgumentos(t *testing.T) {
-	cmd := NewRootCmd()
+	cmd := NewRootCmd(appctx.Deps{})
 	var out bytes.Buffer
 	cmd.SetOut(&out)
 	cmd.SetErr(&out)
@@ -22,7 +24,7 @@ func TestRootMuestraAyudaSinArgumentos(t *testing.T) {
 }
 
 func TestVersionImprimeLaVersion(t *testing.T) {
-	cmd := NewRootCmd()
+	cmd := NewRootCmd(appctx.Deps{})
 	var out bytes.Buffer
 	cmd.SetOut(&out)
 	cmd.SetArgs([]string{"version"})

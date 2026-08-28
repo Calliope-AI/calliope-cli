@@ -6,28 +6,29 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/calliope/calliope-cli/internal/appctx"
+	"github.com/calliope/calliope-cli/internal/commands"
 	"github.com/calliope/calliope-cli/internal/version"
 )
 
 // NewRootCmd construye el comando raíz con sus flags globales.
 // Se crea uno nuevo por invocación para que los tests no compartan estado.
-func NewRootCmd() *cobra.Command {
+func NewRootCmd(d appctx.Deps) *cobra.Command {
 	root := &cobra.Command{
 		Use:           "calliope",
 		Short:         "Interfaz de línea de comandos de Calliope Data",
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
+	// La lista de flags vive en appctx, no aquí: así los tests de comandos
+	// montan una raíz idéntica a la real sin duplicarla.
+	appctx.RegisterGlobalFlags(root)
 
-	// Flags globales; los consumen appctx y presenter en tareas posteriores.
-	f := root.PersistentFlags()
-	f.String("org", "", "organización sobre la que operar")
-	f.Bool("json", false, "salida JSON con envelope completo")
-	f.Bool("quiet", false, "salida solo de datos, sin envelope")
-	f.Bool("md", false, "salida en Markdown")
-	f.String("jq", "", "filtra la salida con una expresión jq")
-
-	root.AddCommand(newVersionCmd())
+	root.AddCommand(
+		newVersionCmd(),
+		commands.NewAuthCmd(d),
+		commands.NewOrgsCmd(d),
+	)
 	return root
 }
 
