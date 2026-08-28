@@ -29,6 +29,7 @@ func NewRootCmd(d appctx.Deps) *cobra.Command {
 		commands.NewAuthCmd(d),
 		commands.NewOrgsCmd(d),
 		commands.NewConfigCmd(d),
+		commands.NewAskCmd(d),
 	)
 	return root
 }
