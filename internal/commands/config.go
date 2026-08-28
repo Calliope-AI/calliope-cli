@@ -91,8 +91,15 @@ func newConfigSetCmd(d appctx.Deps) *cobra.Command {
 			clave, valor := args[0], args[1]
 
 			ruta := filepath.Join(d.Cwd, ".calliope", config.FileName)
+			dirMode := os.FileMode(0o755)
 			if global {
 				ruta = config.GlobalPath(d.Env)
+				// El directorio global es el mismo donde auth.DefaultStore
+				// guarda las credenciales (internal/auth/store.go), que lo
+				// trata como sensible: 0700 en vez del 0755 que basta para el
+				// directorio de proyecto, que ya es público -vive dentro del
+				// propio repositorio.
+				dirMode = 0o700
 			} else if !config.IsProjectAllowed(clave) {
 				// La misma regla que aplica al leer se aplica al escribir: si
 				// no se pudiera leer, escribirlo solo confunde.
@@ -108,8 +115,19 @@ func newConfigSetCmd(d appctx.Deps) *cobra.Command {
 					fmt.Sprintf("Fíjala en la global con: calliope config set %s %s --global", clave, valor))
 			}
 
-			if err := os.MkdirAll(filepath.Dir(ruta), 0o755); err != nil {
+			dir := filepath.Dir(ruta)
+			if err := os.MkdirAll(dir, dirMode); err != nil {
 				return err
+			}
+			if global {
+				// Igual que auth/store.go: os.MkdirAll solo aplica el modo al
+				// crear el directorio; si ya existía (p. ej. tras restaurar
+				// dotfiles o extraer un tar con umask laxo) se queda con los
+				// permisos que ya tuviera. Se refuerza explícitamente para que
+				// no quede listable por otros usuarios del sistema.
+				if err := os.Chmod(dir, 0o700); err != nil {
+					return err
+				}
 			}
 			vals := map[string]string{}
 			if b, err := os.ReadFile(ruta); err == nil {
