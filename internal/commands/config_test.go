@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/calliope/calliope-cli/internal/config"
-	"github.com/calliope/calliope-cli/internal/output"
+	"github.com/Calliope-AI/calliope-cli/internal/config"
+	"github.com/Calliope-AI/calliope-cli/internal/output"
 )
 
 func TestConfigListMuestraLaProcedencia(t *testing.T) {

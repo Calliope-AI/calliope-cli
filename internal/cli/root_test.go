@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/calliope/calliope-cli/internal/appctx"
-	"github.com/calliope/calliope-cli/internal/version"
+	"github.com/Calliope-AI/calliope-cli/internal/appctx"
+	"github.com/Calliope-AI/calliope-cli/internal/version"
 )
 
 func TestRootMuestraAyudaSinArgumentos(t *testing.T) {

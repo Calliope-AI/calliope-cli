@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/calliope/calliope-cli/internal/output"
+	"github.com/Calliope-AI/calliope-cli/internal/output"
 )
 
 func testResult() Result {

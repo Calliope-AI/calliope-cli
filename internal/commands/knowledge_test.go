@@ -10,9 +10,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/calliope/calliope-cli/internal/appctx"
-	"github.com/calliope/calliope-cli/internal/auth"
-	"github.com/calliope/calliope-cli/internal/output"
+	"github.com/Calliope-AI/calliope-cli/internal/appctx"
+	"github.com/Calliope-AI/calliope-cli/internal/auth"
+	"github.com/Calliope-AI/calliope-cli/internal/output"
 )
 
 // TestConceptsYRulesSonGruposDeRecursos comprueba el comportamiento de

@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/calliope/calliope-cli/internal/auth"
-	"github.com/calliope/calliope-cli/internal/output"
+	"github.com/Calliope-AI/calliope-cli/internal/auth"
+	"github.com/Calliope-AI/calliope-cli/internal/output"
 )
 
 func testClient(t *testing.T, h http.HandlerFunc) (*Client, *httptest.Server) {

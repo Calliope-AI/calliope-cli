@@ -10,9 +10,9 @@ builds:
     goarch: [amd64, arm64]
     ldflags:
       - -s -w
-      - -X github.com/calliope/calliope-cli/internal/version.Version={{.Version}}
-      - -X github.com/calliope/calliope-cli/internal/version.Commit={{.ShortCommit}}
-      - -X github.com/calliope/calliope-cli/internal/version.Date={{.Date}}
+      - -X github.com/Calliope-AI/calliope-cli/internal/version.Version={{.Version}}
+      - -X github.com/Calliope-AI/calliope-cli/internal/version.Commit={{.ShortCommit}}
+      - -X github.com/Calliope-AI/calliope-cli/internal/version.Date={{.Date}}
 
 archives:
   - formats: [tar.gz]
@@ -37,23 +37,37 @@ nfpms:
     description: CLI de Calliope Data
     license: Proprietary
 
-brews:
-  - repository:
-      owner: calliope
+# Homebrew se publica como *cask*, no como formula: GoReleaser 2.18 marcó
+# `brews:` como deprecado para binarios precompilados como este.
+# Ojo: un cask es solo macOS. En Linux la vía son install.sh y los paquetes
+# deb/rpm/apk que declara nfpms.
+homebrew_casks:
+  - name: calliope
+    repository:
+      owner: Calliope-AI
       name: homebrew-tap
       # GITHUB_TOKEN (el de por defecto en el workflow) no tiene permiso de
-      # escritura sobre calliope/homebrew-tap: hace falta el token dedicado.
+      # escritura sobre Calliope-AI/homebrew-tap: hace falta el token dedicado.
       token: "{{ .Env.TAP_GITHUB_TOKEN }}"
+    binaries: [calliope]
     description: CLI de Calliope Data
-    install: |
-      bin.install "calliope"
+    homepage: https://github.com/Calliope-AI/calliope-cli
+    hooks:
+      post:
+        # El binario no va firmado ni notarizado, así que Gatekeeper lo pone
+        # en cuarentena al descargarlo y macOS se niega a ejecutarlo. Esto la
+        # retira en la instalación; quítalo el día que se firme el binario.
+        install: |
+          if system_command("/usr/bin/xattr", args: ["-h"]).exit_status == 0
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/calliope"]
+          end
 
 scoops:
   - repository:
-      owner: calliope
+      owner: Calliope-AI
       name: scoop-bucket
       # Mismo motivo que en brews[].repository.token: GITHUB_TOKEN no puede
-      # escribir en calliope/scoop-bucket.
+      # escribir en Calliope-AI/scoop-bucket.
       token: "{{ .Env.TAP_GITHUB_TOKEN }}"
     description: CLI de Calliope Data
 

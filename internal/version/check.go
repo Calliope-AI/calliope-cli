@@ -8,7 +8,7 @@ import (
 )
 
 // ReleasesURL es el endpoint que se consulta para saber la última versión.
-const ReleasesURL = "https://api.github.com/repos/calliope/calliope-cli/releases/latest"
+const ReleasesURL = "https://api.github.com/repos/Calliope-AI/calliope-cli/releases/latest"
 
 // LatestVersion devuelve la última versión publicada si es distinta de la
 // actual, o cadena vacía. Nunca devuelve error: un aviso de cortesía jamás

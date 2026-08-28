@@ -8,7 +8,7 @@ import (
 
 	"github.com/zalando/go-keyring"
 
-	"github.com/calliope/calliope-cli/internal/output"
+	"github.com/Calliope-AI/calliope-cli/internal/output"
 )
 
 // Estos tests cubren keyringStore sin tocar el llavero real del sistema:

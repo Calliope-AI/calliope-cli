@@ -11,10 +11,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/calliope/calliope-cli/internal/appctx"
-	"github.com/calliope/calliope-cli/internal/auth"
-	"github.com/calliope/calliope-cli/internal/output"
-	"github.com/calliope/calliope-cli/internal/version"
+	"github.com/Calliope-AI/calliope-cli/internal/appctx"
+	"github.com/Calliope-AI/calliope-cli/internal/auth"
+	"github.com/Calliope-AI/calliope-cli/internal/output"
+	"github.com/Calliope-AI/calliope-cli/internal/version"
 )
 
 // TestOrgsEsUnGrupoDeRecursos comprueba el comportamiento de `orgs` como

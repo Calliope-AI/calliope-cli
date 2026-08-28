@@ -9,10 +9,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/calliope/calliope-cli/internal/appctx"
-	"github.com/calliope/calliope-cli/internal/auth"
-	"github.com/calliope/calliope-cli/internal/output"
-	"github.com/calliope/calliope-cli/internal/sdk"
+	"github.com/Calliope-AI/calliope-cli/internal/appctx"
+	"github.com/Calliope-AI/calliope-cli/internal/auth"
+	"github.com/Calliope-AI/calliope-cli/internal/output"
+	"github.com/Calliope-AI/calliope-cli/internal/sdk"
 )
 
 // TestDocsEsUnGrupoDeRecursos comprueba el comportamiento de `docs` como

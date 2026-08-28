@@ -1,6 +1,6 @@
 package auth
 
-import "github.com/calliope/calliope-cli/internal/output"
+import "github.com/Calliope-AI/calliope-cli/internal/output"
 
 // Resolve devuelve la credencial de esta invocación y una descripción legible
 // de su origen, que `auth status` y `doctor` muestran tal cual.

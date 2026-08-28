@@ -4,9 +4,9 @@ package main
 import (
 	"os"
 
-	"github.com/calliope/calliope-cli/internal/appctx"
-	"github.com/calliope/calliope-cli/internal/cli"
-	"github.com/calliope/calliope-cli/internal/output"
+	"github.com/Calliope-AI/calliope-cli/internal/appctx"
+	"github.com/Calliope-AI/calliope-cli/internal/cli"
+	"github.com/Calliope-AI/calliope-cli/internal/output"
 )
 
 func main() {

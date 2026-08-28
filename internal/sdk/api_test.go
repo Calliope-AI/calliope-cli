@@ -12,7 +12,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/calliope/calliope-cli/internal/auth"
+	"github.com/Calliope-AI/calliope-cli/internal/auth"
 )
 
 func serverWithFixture(t *testing.T, fixture string, capturar *http.Request) *Client {

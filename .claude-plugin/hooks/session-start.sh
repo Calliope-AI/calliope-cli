@@ -6,7 +6,7 @@
 set -uo pipefail
 
 if ! command -v calliope >/dev/null 2>&1; then
-  echo "calliope no está instalado. Instálalo con: brew install calliope/tap/calliope"
+  echo "calliope no está instalado. Instálalo con: brew install Calliope-AI/tap/calliope"
   exit 0
 fi
 

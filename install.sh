@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Instalador de calliope. Uso:
-#   curl -fsSL https://raw.githubusercontent.com/calliope/calliope-cli/main/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/Calliope-AI/calliope-cli/main/install.sh | bash
 set -euo pipefail
 
-REPO="calliope/calliope-cli"
+REPO="Calliope-AI/calliope-cli"
 DESTINO="${CALLIOPE_INSTALL_DIR:-/usr/local/bin}"
 
 so=$(uname -s | tr '[:upper:]' '[:lower:]')

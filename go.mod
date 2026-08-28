@@ -1,4 +1,4 @@
-module github.com/calliope/calliope-cli
+module github.com/Calliope-AI/calliope-cli
 
 go 1.25.0
 

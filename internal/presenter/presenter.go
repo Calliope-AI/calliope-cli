@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/calliope/calliope-cli/internal/output"
+	"github.com/Calliope-AI/calliope-cli/internal/output"
 )
 
 // Mode es el formato de salida solicitado.

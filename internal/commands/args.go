@@ -6,7 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/calliope/calliope-cli/internal/output"
+	"github.com/Calliope-AI/calliope-cli/internal/output"
 )
 
 // exactArgs envuelve cobra.ExactArgs(n) para que un número de argumentos

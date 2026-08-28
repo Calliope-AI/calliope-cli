@@ -7,12 +7,12 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/calliope/calliope-cli/internal/appctx"
-	"github.com/calliope/calliope-cli/internal/auth"
-	"github.com/calliope/calliope-cli/internal/output"
-	"github.com/calliope/calliope-cli/internal/presenter"
-	"github.com/calliope/calliope-cli/internal/sdk"
-	"github.com/calliope/calliope-cli/internal/version"
+	"github.com/Calliope-AI/calliope-cli/internal/appctx"
+	"github.com/Calliope-AI/calliope-cli/internal/auth"
+	"github.com/Calliope-AI/calliope-cli/internal/output"
+	"github.com/Calliope-AI/calliope-cli/internal/presenter"
+	"github.com/Calliope-AI/calliope-cli/internal/sdk"
+	"github.com/Calliope-AI/calliope-cli/internal/version"
 )
 
 // NewAuthCmd construye el grupo `auth`. Invocado pelado muestra la ayuda

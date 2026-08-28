@@ -7,9 +7,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/calliope/calliope-cli/internal/appctx"
-	"github.com/calliope/calliope-cli/internal/commands"
-	"github.com/calliope/calliope-cli/internal/version"
+	"github.com/Calliope-AI/calliope-cli/internal/appctx"
+	"github.com/Calliope-AI/calliope-cli/internal/commands"
+	"github.com/Calliope-AI/calliope-cli/internal/version"
 )
 
 // NewRootCmd construye el comando raíz con sus flags globales.

@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/calliope/calliope-cli/internal/appctx"
-	"github.com/calliope/calliope-cli/internal/output"
+	"github.com/Calliope-AI/calliope-cli/internal/appctx"
+	"github.com/Calliope-AI/calliope-cli/internal/output"
 )
 
 // TestComandoDesconocidoEsCLIError es el test de I3 de la oleada final:

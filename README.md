@@ -6,10 +6,10 @@ de negocio de tu organización, desde el terminal y desde agentes de IA.
 
 ## Instalación
 
-    brew install calliope/tap/calliope
+    brew install Calliope-AI/tap/calliope
 
     # o bien
-    curl -fsSL https://raw.githubusercontent.com/calliope/calliope-cli/main/install.sh | bash
+    curl -fsSL https://raw.githubusercontent.com/Calliope-AI/calliope-cli/main/install.sh | bash
 
 ## Primeros pasos
 
@@ -135,16 +135,15 @@ Con honestidad, esto es lo que falta:
   confirmar el resto de campos de `Me` —empezando por `id`, el que `auth
   status` expone como `"userId"`— hace falta además correr
   `calliope auth status --json` a mano contra una organización real.
-- **La configuración de GoReleaser no se ha verificado.** `.goreleaser.yaml`
-  no se ha comprobado con `goreleaser check` ni con `goreleaser build
-  --snapshot` porque la herramienta no estaba disponible al escribir esto.
-  Antes de depender del release automático conviene ejecutar ambos; además,
-  antes del primer release hay que crear el secreto `TAP_GITHUB_TOKEN` en
-  este repositorio (`.goreleaser.yaml` lo exige para `brews[].repository` y
-  `scoops[].repository`: el `GITHUB_TOKEN` por defecto del workflow no tiene
-  permiso de escritura sobre `calliope/homebrew-tap` ni
-  `calliope/scoop-bucket`), o la publicación en el tap de Homebrew y en el
-  bucket de Scoop fallará aunque el resto del release funcione.
+- **El release automático no se ha ejecutado nunca de verdad.** La
+  configuración sí está verificada: `goreleaser check` pasa limpio y un
+  `goreleaser release --snapshot` local produce las seis combinaciones de
+  sistema y arquitectura, con nombres que coinciden con los que reconstruye
+  `install.sh` y con la versión inyectada en el binario. Lo que falta es el
+  camino real: hace falta crear los repositorios `Calliope-AI/homebrew-tap` y
+  `Calliope-AI/scoop-bucket`, y el secreto `TAP_GITHUB_TOKEN` con permiso de
+  escritura sobre ambos, antes del primer tag `v*`.
+
 - **El smoke de extremo a extremo nunca se ha ejecutado contra un backend
   real.** `test/e2e/smoke_test.go` compila y sus tests se saltan
   correctamente sin credenciales, pero nadie lo ha corrido todavía con

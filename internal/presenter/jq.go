@@ -7,7 +7,7 @@ import (
 
 	"github.com/itchyny/gojq"
 
-	"github.com/calliope/calliope-cli/internal/output"
+	"github.com/Calliope-AI/calliope-cli/internal/output"
 )
 
 // renderJQ aplica una expresión jq al envelope. El filtro va embebido en el

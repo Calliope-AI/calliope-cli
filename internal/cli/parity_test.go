@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/calliope/calliope-cli/internal/appctx"
-	"github.com/calliope/calliope-cli/skills"
+	"github.com/Calliope-AI/calliope-cli/internal/appctx"
+	"github.com/Calliope-AI/calliope-cli/skills"
 )
 
 // El SKILL.md va embebido en el binario, así que un agente que tenga el

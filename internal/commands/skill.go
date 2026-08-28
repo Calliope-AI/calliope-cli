@@ -5,7 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/calliope/calliope-cli/skills"
+	"github.com/Calliope-AI/calliope-cli/skills"
 )
 
 // NewSkillCmd vuelca el skill embebido. Es como un agente aprende a usar este

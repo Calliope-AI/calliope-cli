@@ -14,8 +14,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/calliope/calliope-cli/internal/auth"
-	"github.com/calliope/calliope-cli/internal/output"
+	"github.com/Calliope-AI/calliope-cli/internal/auth"
+	"github.com/Calliope-AI/calliope-cli/internal/output"
 )
 
 // Options configura el cliente.

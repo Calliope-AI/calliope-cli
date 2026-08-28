@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/calliope/calliope-cli/internal/auth"
-	"github.com/calliope/calliope-cli/internal/output"
+	"github.com/Calliope-AI/calliope-cli/internal/auth"
+	"github.com/Calliope-AI/calliope-cli/internal/output"
 )
 
 const respuestaAsk = `{

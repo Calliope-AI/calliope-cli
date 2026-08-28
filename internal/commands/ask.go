@@ -6,10 +6,10 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/calliope/calliope-cli/internal/appctx"
-	"github.com/calliope/calliope-cli/internal/output"
-	"github.com/calliope/calliope-cli/internal/presenter"
-	"github.com/calliope/calliope-cli/internal/sdk"
+	"github.com/Calliope-AI/calliope-cli/internal/appctx"
+	"github.com/Calliope-AI/calliope-cli/internal/output"
+	"github.com/Calliope-AI/calliope-cli/internal/presenter"
+	"github.com/Calliope-AI/calliope-cli/internal/sdk"
 )
 
 // NewAskCmd construye `ask`, la vía por defecto para consultar los datos.
