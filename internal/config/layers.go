@@ -91,11 +91,20 @@ func readLayerFile(src Source, ruta string) (*Layer, error) {
 	return &Layer{Source: src, Path: ruta, Values: vals}, nil
 }
 
-// repoRoot sube desde cwd buscando un directorio .git.
+// repoRoot sube desde cwd buscando un .git, directorio o fichero (Diferido
+// #5 de la oleada final). En un repositorio normal .git es un directorio,
+// pero en un git worktree o un submódulo .git es un FICHERO de una sola
+// línea ("gitdir: <ruta>") que apunta al git real en otro sitio. Antes esta
+// función exigía fi.IsDir(), así que en cualquiera de esos dos casos
+// repoRoot devolvía "" -sin avisar- y la capa de configuración de la raíz
+// del repositorio (SourceRepo, ver Load más abajo) desaparecía en
+// silencio: en un worktree, un .calliope/config.json legítimo en la raíz
+// del repositorio dejaba de aplicarse, y -más grave- también dejaba de
+// sanearse un .calliope/config.json hostil que llegara ahí (ver trust.go).
 func repoRoot(cwd string) string {
 	dir := cwd
 	for {
-		if fi, err := os.Stat(filepath.Join(dir, ".git")); err == nil && fi.IsDir() {
+		if fi, err := os.Stat(filepath.Join(dir, ".git")); err == nil && (fi.IsDir() || fi.Mode().IsRegular()) {
 			return dir
 		}
 		padre := filepath.Dir(dir)

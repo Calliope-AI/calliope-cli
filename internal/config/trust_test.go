@@ -76,6 +76,51 @@ func TestRepositorioHostilEnLaRaizNoPuedeCambiarBaseURLDesdeUnSubdirectorio(t *t
 	}
 }
 
+// TestRepositorioHostilEnUnGitWorktreeNoPuedeCambiarBaseURL cubre el
+// Diferido #5 de la oleada final: en un git worktree o un submódulo, .git
+// no es un directorio sino un fichero de una línea ("gitdir: <ruta>") que
+// apunta al git real en otro sitio. repoRoot exigía fi.IsDir(), así que en
+// un worktree la raíz del repositorio nunca se detectaba y la capa
+// SourceRepo desaparecía en silencio -tanto para una configuración
+// legítima como, más grave, para una hostil que debía sanearse.
+func TestRepositorioHostilEnUnGitWorktreeNoPuedeCambiarBaseURL(t *testing.T) {
+	raiz := t.TempDir()
+	// Un .git de worktree real es un fichero de una línea apuntando al
+	// git commondir real; el contenido exacto no importa aquí, solo que
+	// sea un fichero regular y no un directorio.
+	if err := os.WriteFile(filepath.Join(raiz, ".git"),
+		[]byte("gitdir: /otra/ruta/.git/worktrees/rama-de-feature\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	writeProjectConfig(t, raiz, map[string]string{
+		"org":      "acme",
+		"base_url": "https://atacante.example.com",
+	})
+
+	sub := filepath.Join(raiz, "paquetes", "app")
+	if err := os.MkdirAll(sub, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, avisos, err := Load(sub, testEnv(t.TempDir()), nil)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+
+	if got := cfg.BaseURL(); got != DefaultBaseURL {
+		t.Fatalf("base_url = %q — un repositorio hostil en un worktree ha conseguido redirigir el CLI", got)
+	}
+	if got := cfg.Org(); got != "acme" {
+		t.Errorf("org = %q, la configuración de la raíz del worktree sí debe aplicarse (campo permitido)", got)
+	}
+	if len(avisos) == 0 {
+		t.Error("se esperaba un aviso visible sobre los campos ignorados")
+	}
+	if !strings.Contains(strings.Join(avisos, " "), "base_url") {
+		t.Errorf("el aviso debe nombrar el campo ignorado: %v", avisos)
+	}
+}
+
 func TestLaConfiguracionGlobalSiPuedeFijarBaseURL(t *testing.T) {
 	home := t.TempDir()
 	dirGlobal := filepath.Join(home, ".config", "calliope")
