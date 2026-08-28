@@ -21,6 +21,14 @@ func NewRootCmd(d appctx.Deps) *cobra.Command {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
+	// SetFlagErrorFunc se hereda de padres a hijos (cobra.Command.FlagErrorFunc
+	// sube hasta encontrar uno fijado), así que basta con fijarlo aquí para
+	// que un flag desconocido en cualquier subcomando -"calliope docs list
+	// --xxx", no solo en la raíz- salga como CLIError en español con hint, en
+	// vez del "unknown flag: --xxx" en inglés, sin hint, que da pflag por
+	// defecto (I3 de la oleada final).
+	root.SetFlagErrorFunc(flagError)
+
 	// La lista de flags vive en appctx, no aquí: así los tests de comandos
 	// montan una raíz idéntica a la real sin duplicarla.
 	appctx.RegisterGlobalFlags(root)
@@ -47,8 +55,17 @@ func NewRootCmd(d appctx.Deps) *cobra.Command {
 // la ejecución acaba en error-, para que main() pueda resolver el modo de
 // salida de un error con appctx.ResolveOutputMode, exactamente igual que
 // resolvería el de un éxito (C2 de la oleada final).
+//
+// wrapUnknownCommand normaliza a CLIError el único error que Cobra puede
+// producir antes de que se ejecute código nuestro -un comando de nivel
+// superior que no existe-, así que main() no tiene que conocer la forma en
+// que Cobra construye ese mensaje (I3 de la oleada final). Los flags
+// desconocidos ya llegan como CLIError vía root.SetFlagErrorFunc, y un
+// subcomando desconocido dentro de un grupo, vía groupRunE (C3): a esta
+// altura ya son CLIError y wrapUnknownCommand los deja pasar intactos.
 func ExecuteRoot(d appctx.Deps) (*cobra.Command, error) {
-	return NewRootCmd(d).ExecuteC()
+	cmd, err := NewRootCmd(d).ExecuteC()
+	return cmd, wrapUnknownCommand(err)
 }
 
 func newVersionCmd(d appctx.Deps) *cobra.Command {
