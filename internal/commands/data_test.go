@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"encoding/csv"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -572,5 +573,337 @@ func TestQuerySinSQLEsErrorDeUso(t *testing.T) {
 	}
 	if got := output.ExitCodeFor(err); got != 2 {
 		t.Errorf("código de salida = %d, se esperaba 2 (uso incorrecto)", got)
+	}
+}
+
+// --- Ronda de correcciones 1/5: notación científica en números ---
+
+// TestQueryCSVFormateaNumerosSinNotacionCientifica cubre IMPORTANT 1: los
+// números de una fila llegan siempre como float64 tras json.Unmarshal (JSON
+// no distingue enteros de decimales), y fmt.Sprintf("%v", ...) usa %g para
+// float64, que cambia a notación exponencial con cifras grandes o con
+// muchos decimales. Un CSV de cifras financieras en notación científica no
+// lo interpreta de un vistazo ni una persona ni una hoja de cálculo.
+func TestQueryCSVFormateaNumerosSinNotacionCientifica(t *testing.T) {
+	d, stdout, st := depsWithServer(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"data":[{"entero":1200,"decimal":1234567.891234,"grande":123456789012345}]}`))
+	})
+	if err := st.Save(auth.Credential{Kind: auth.KindAPIKey, Token: "k"}); err != nil {
+		t.Fatal(err)
+	}
+
+	root := testRoot(NewQueryCmd(d), stdout)
+	root.SetArgs([]string{"query", "SELECT 1", "--csv"})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("query --csv: %v", err)
+	}
+	salida := stdout.String()
+	if strings.Contains(salida, "e+") || strings.Contains(salida, "E+") {
+		t.Errorf("el CSV no debe usar notación científica: %q", salida)
+	}
+	// Columnas en orden alfabético (columnsOf): decimal, entero, grande. El
+	// entero (1200) debe salir sin ceros de más ("1200", no "1200.0000...").
+	if salida != "decimal,entero,grande\n1234567.891234,1200,123456789012345\n" {
+		t.Errorf("CSV inesperado:\n%q", salida)
+	}
+}
+
+// TestQueryEnTextoFormateaNumerosSinNotacionCientifica es la variante en el
+// renderer de Text (IsTTY:true) del test anterior.
+func TestQueryEnTextoFormateaNumerosSinNotacionCientifica(t *testing.T) {
+	d, stdout, st := depsWithServer(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"data":[{"entero":1200,"decimal":1234567.891234,"grande":123456789012345}]}`))
+	})
+	d.IsTTY = true
+	if err := st.Save(auth.Credential{Kind: auth.KindAPIKey, Token: "k"}); err != nil {
+		t.Fatal(err)
+	}
+
+	root := testRoot(NewQueryCmd(d), stdout)
+	root.SetArgs([]string{"query", "SELECT 1"})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("query: %v", err)
+	}
+	salida := stdout.String()
+	if strings.Contains(salida, "e+") || strings.Contains(salida, "E+") {
+		t.Errorf("la tabla de texto no debe usar notación científica: %q", salida)
+	}
+	for _, esperado := range []string{"1234567.891234", "1200", "123456789012345"} {
+		if !strings.Contains(salida, esperado) {
+			t.Errorf("falta el valor %q en la salida: %q", esperado, salida)
+		}
+	}
+}
+
+// --- Ronda de correcciones 1/5: nulos ---
+
+// TestQueryCSVNuloEsCampoVacio cubre IMPORTANT 2: un NULL del backend debe
+// salir como campo vacío en el CSV (RFC 4180), no como la cadena "<nil>" que
+// da fmt.Sprintf("%v", nil) por defecto -indistinguible de un valor de
+// negocio real con esa cadena-. Se relee el CSV con encoding/csv (no con
+// strings.Contains) para comprobar el campo vacío sin ambigüedad de
+// comillas o de formato.
+func TestQueryCSVNuloEsCampoVacio(t *testing.T) {
+	d, stdout, st := depsWithServer(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"data":[{"a":"x","b":null}]}`))
+	})
+	if err := st.Save(auth.Credential{Kind: auth.KindAPIKey, Token: "k"}); err != nil {
+		t.Fatal(err)
+	}
+
+	root := testRoot(NewQueryCmd(d), stdout)
+	root.SetArgs([]string{"query", "SELECT 1", "--csv"})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("query --csv: %v", err)
+	}
+	if strings.Contains(stdout.String(), "<nil>") {
+		t.Errorf("el CSV no debe contener la cadena <nil>: %q", stdout.String())
+	}
+	registros, err := csv.NewReader(strings.NewReader(stdout.String())).ReadAll()
+	if err != nil {
+		t.Fatalf("el CSV no se pudo parsear: %v (%q)", err, stdout.String())
+	}
+	if len(registros) != 2 || len(registros[1]) != 2 || registros[1][0] != "x" || registros[1][1] != "" {
+		t.Errorf("fila inesperada: %+v", registros)
+	}
+}
+
+// TestQueryCSVColumnaAusenteEnFilaHeterogeneaEsCampoVacio cubre el otro
+// origen de un nulo: una fila heterogénea (con menos columnas que otras) en
+// vez de un NULL explícito del backend. columnsOf calcula la unión de
+// columnas de todas las filas, así que la fila que no trae "b" debe salir
+// con ese campo vacío igualmente.
+func TestQueryCSVColumnaAusenteEnFilaHeterogeneaEsCampoVacio(t *testing.T) {
+	d, stdout, st := depsWithServer(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"data":[{"a":"x","b":"y"},{"a":"z"}]}`))
+	})
+	if err := st.Save(auth.Credential{Kind: auth.KindAPIKey, Token: "k"}); err != nil {
+		t.Fatal(err)
+	}
+
+	root := testRoot(NewQueryCmd(d), stdout)
+	root.SetArgs([]string{"query", "SELECT 1", "--csv"})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("query --csv: %v", err)
+	}
+	registros, err := csv.NewReader(strings.NewReader(stdout.String())).ReadAll()
+	if err != nil {
+		t.Fatalf("el CSV no se pudo parsear: %v (%q)", err, stdout.String())
+	}
+	if len(registros) != 3 {
+		t.Fatalf("se esperaban 3 líneas (cabecera + 2 filas), hay %d: %+v", len(registros), registros)
+	}
+	if registros[2][0] != "z" || registros[2][1] != "" {
+		t.Errorf("fila heterogénea inesperada: %+v", registros[2])
+	}
+}
+
+// TestQueryEnTextoNuloNoEsNilLiteral es la variante en el renderer de Text
+// (IsTTY:true) de TestQueryCSVNuloEsCampoVacio. El texto usa "NULL" en vez
+// de un campo vacío (que en una tabla alineada con espacios pasaría
+// desapercibido), pero el requisito es el mismo: nunca "<nil>".
+func TestQueryEnTextoNuloNoEsNilLiteral(t *testing.T) {
+	d, stdout, st := depsWithServer(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"data":[{"a":"x","b":null}]}`))
+	})
+	d.IsTTY = true
+	if err := st.Save(auth.Credential{Kind: auth.KindAPIKey, Token: "k"}); err != nil {
+		t.Fatal(err)
+	}
+
+	root := testRoot(NewQueryCmd(d), stdout)
+	root.SetArgs([]string{"query", "SELECT 1"})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("query: %v", err)
+	}
+	salida := stdout.String()
+	if strings.Contains(salida, "<nil>") {
+		t.Errorf("la tabla de texto no debe mostrar <nil>: %q", salida)
+	}
+	if !strings.Contains(salida, "NULL") {
+		t.Errorf("la tabla de texto debe marcar el nulo como NULL: %q", salida)
+	}
+}
+
+// TestQueryEnTextoColumnaAusenteEnFilaHeterogeneaNoEsNilLiteral es la
+// variante en Text de TestQueryCSVColumnaAusenteEnFilaHeterogeneaEsCampoVacio.
+func TestQueryEnTextoColumnaAusenteEnFilaHeterogeneaNoEsNilLiteral(t *testing.T) {
+	d, stdout, st := depsWithServer(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"data":[{"a":"x","b":"y"},{"a":"z"}]}`))
+	})
+	d.IsTTY = true
+	if err := st.Save(auth.Credential{Kind: auth.KindAPIKey, Token: "k"}); err != nil {
+		t.Fatal(err)
+	}
+
+	root := testRoot(NewQueryCmd(d), stdout)
+	root.SetArgs([]string{"query", "SELECT 1"})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("query: %v", err)
+	}
+	salida := stdout.String()
+	if strings.Contains(salida, "<nil>") {
+		t.Errorf("la tabla de texto no debe mostrar <nil>: %q", salida)
+	}
+	var lineaZ string
+	for _, l := range strings.Split(salida, "\n") {
+		if strings.Contains(l, "z") {
+			lineaZ = l
+		}
+	}
+	if lineaZ == "" || !strings.Contains(lineaZ, "NULL") {
+		t.Errorf("la fila de 'z' (sin columna b) debe mostrar NULL: %q", lineaZ)
+	}
+}
+
+// --- Ronda de correcciones 1/5: --csv frente a los modos de salida ---
+
+// TestQueryCSVConJSONEsErrorDeUso cubre IMPORTANT 3: --csv cortaba en
+// silencio antes de llegar a ctx.Render (lo único que mira --json/--quiet
+// /--md/--jq), así que combinarlo con --json devolvía CSV sin aviso. Debe
+// ser un error de uso -y, por tratarse de un error de uso, sin llegar a
+// llamar al backend-.
+func TestQueryCSVConJSONEsErrorDeUso(t *testing.T) {
+	llamadas := 0
+	d, stdout, st := depsWithServer(t, func(w http.ResponseWriter, r *http.Request) {
+		llamadas++
+		w.Write([]byte(`{"data":[]}`))
+	})
+	if err := st.Save(auth.Credential{Kind: auth.KindAPIKey, Token: "k"}); err != nil {
+		t.Fatal(err)
+	}
+
+	root := testRoot(NewQueryCmd(d), stdout)
+	root.SetArgs([]string{"query", "SELECT 1", "--csv", "--json"})
+	err := root.Execute()
+	if err == nil {
+		t.Fatal("se esperaba error al combinar --csv con --json")
+	}
+	if llamadas != 0 {
+		t.Errorf("no debía llamarse al backend con un error de uso: llamadas = %d", llamadas)
+	}
+
+	var cliErr *output.CLIError
+	if !errors.As(err, &cliErr) {
+		t.Fatalf("el error debería ser un *output.CLIError, fue %T", err)
+	}
+	if cliErr.Code != output.CodeUsage {
+		t.Errorf("code = %q, se esperaba %q", cliErr.Code, output.CodeUsage)
+	}
+	if !strings.Contains(cliErr.Message, "--json") {
+		t.Errorf("el mensaje debe nombrar --json: %q", cliErr.Message)
+	}
+	if cliErr.Hint == "" {
+		t.Error("se esperaba un hint que dijera cuál elegir")
+	}
+	if got := output.ExitCodeFor(err); got != 2 {
+		t.Errorf("código de salida = %d, se esperaba 2 (uso incorrecto)", got)
+	}
+}
+
+func TestQueryCSVConQuietEsErrorDeUso(t *testing.T) {
+	d, stdout, st := depsWithServer(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"data":[]}`))
+	})
+	if err := st.Save(auth.Credential{Kind: auth.KindAPIKey, Token: "k"}); err != nil {
+		t.Fatal(err)
+	}
+
+	root := testRoot(NewQueryCmd(d), stdout)
+	root.SetArgs([]string{"query", "SELECT 1", "--csv", "--quiet"})
+	err := root.Execute()
+	if err == nil {
+		t.Fatal("se esperaba error al combinar --csv con --quiet")
+	}
+	var cliErr *output.CLIError
+	if !errors.As(err, &cliErr) {
+		t.Fatalf("el error debería ser un *output.CLIError, fue %T", err)
+	}
+	if cliErr.Code != output.CodeUsage || !strings.Contains(cliErr.Message, "--quiet") {
+		t.Errorf("error inesperado: %+v", cliErr)
+	}
+	if cliErr.Hint == "" {
+		t.Error("se esperaba un hint que dijera cuál elegir")
+	}
+}
+
+func TestQueryCSVConMdEsErrorDeUso(t *testing.T) {
+	d, stdout, st := depsWithServer(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"data":[]}`))
+	})
+	if err := st.Save(auth.Credential{Kind: auth.KindAPIKey, Token: "k"}); err != nil {
+		t.Fatal(err)
+	}
+
+	root := testRoot(NewQueryCmd(d), stdout)
+	root.SetArgs([]string{"query", "SELECT 1", "--csv", "--md"})
+	err := root.Execute()
+	if err == nil {
+		t.Fatal("se esperaba error al combinar --csv con --md")
+	}
+	var cliErr *output.CLIError
+	if !errors.As(err, &cliErr) {
+		t.Fatalf("el error debería ser un *output.CLIError, fue %T", err)
+	}
+	if cliErr.Code != output.CodeUsage || !strings.Contains(cliErr.Message, "--md") {
+		t.Errorf("error inesperado: %+v", cliErr)
+	}
+	if cliErr.Hint == "" {
+		t.Error("se esperaba un hint que dijera cuál elegir")
+	}
+}
+
+func TestQueryCSVConJQEsErrorDeUso(t *testing.T) {
+	d, stdout, st := depsWithServer(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"data":[]}`))
+	})
+	if err := st.Save(auth.Credential{Kind: auth.KindAPIKey, Token: "k"}); err != nil {
+		t.Fatal(err)
+	}
+
+	root := testRoot(NewQueryCmd(d), stdout)
+	root.SetArgs([]string{"query", "SELECT 1", "--csv", "--jq", ".data"})
+	err := root.Execute()
+	if err == nil {
+		t.Fatal("se esperaba error al combinar --csv con --jq")
+	}
+	var cliErr *output.CLIError
+	if !errors.As(err, &cliErr) {
+		t.Fatalf("el error debería ser un *output.CLIError, fue %T", err)
+	}
+	if cliErr.Code != output.CodeUsage || !strings.Contains(cliErr.Message, "--jq") {
+		t.Errorf("error inesperado: %+v", cliErr)
+	}
+	if cliErr.Hint == "" {
+		t.Error("se esperaba un hint que dijera cuál elegir")
+	}
+}
+
+// --- Ronda de correcciones 1/5: cero filas en modo texto ---
+
+// TestQueryEnTextoConCeroFilasNoQuedaVacio cubre MINOR 4: sin filas, el
+// modo texto no debe quedar en blanco -eso no distingue "la consulta
+// funcionó y no hay filas" de "algo se rompió en silencio"-, así que debe
+// decir explícitamente que no hay filas.
+func TestQueryEnTextoConCeroFilasNoQuedaVacio(t *testing.T) {
+	d, stdout, st := depsWithServer(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"data":[]}`))
+	})
+	d.IsTTY = true
+	if err := st.Save(auth.Credential{Kind: auth.KindAPIKey, Token: "k"}); err != nil {
+		t.Fatal(err)
+	}
+
+	root := testRoot(NewQueryCmd(d), stdout)
+	root.SetArgs([]string{"query", "SELECT 1"})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("query: %v", err)
+	}
+	salida := stdout.String()
+	if strings.TrimSpace(salida) == "" {
+		t.Error("con 0 filas, el modo texto no debe quedar vacío")
+	}
+	if !strings.Contains(salida, "Sin filas") {
+		t.Errorf("se esperaba un mensaje que dijera que no hay filas: %q", salida)
 	}
 }

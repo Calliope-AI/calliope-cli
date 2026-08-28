@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -114,6 +115,21 @@ func NewQueryCmd(d appctx.Deps) *cobra.Command {
 				return err
 			}
 
+			if comoCSV {
+				// --csv y los flags de modo de salida (--json, --quiet,
+				// --md, --jq) son dos formas de salida incompatibles entre
+				// sí. Antes, --csv cortaba en silencio antes de llegar a
+				// ctx.Render -que es lo único que mira esos flags-, así que
+				// "query ... --csv --json" devolvía CSV sin aviso. Se
+				// valida antes de tocar la red: es un error de uso, no de
+				// datos.
+				if otro := csvConflictsWithOutputMode(cmd); otro != "" {
+					return output.NewError(output.CodeUsage,
+						fmt.Sprintf("--csv no se puede combinar con %s: son dos modos de salida distintos.", otro),
+						fmt.Sprintf("Usa --csv solo, o usa %s sin --csv.", otro))
+				}
+			}
+
 			resp, err := ctx.Client.Query(cmd.Context(), ctx.Org, args[0], formato)
 			if err != nil {
 				return err
@@ -136,11 +152,20 @@ func NewQueryCmd(d appctx.Deps) *cobra.Command {
 				Envelope: output.OKEnvelope(filas, fmt.Sprintf("%d filas", len(filas)),
 					output.Breadcrumb{Action: "esquema", Cmd: "calliope schema"}),
 				Text: func(w io.Writer) error {
+					if len(filas) == 0 {
+						// Sin esto, 0 filas imprime una cadena vacía: no se
+						// distingue "la consulta funcionó y no hay filas" de
+						// "algo se rompió en silencio". El Summary con "0
+						// filas" solo vive en el envelope, que este
+						// renderer nunca consulta.
+						_, err := fmt.Fprintln(w, "Sin filas.")
+						return err
+					}
 					tabla := make([][]string, 0, len(filas))
 					for _, f := range filas {
 						fila := make([]string, 0, len(columnas))
 						for _, c := range columnas {
-							fila = append(fila, fmt.Sprintf("%v", f[c]))
+							fila = append(fila, cellValue(f[c]))
 						}
 						tabla = append(tabla, fila)
 					}
@@ -152,6 +177,55 @@ func NewQueryCmd(d appctx.Deps) *cobra.Command {
 	cmd.Flags().StringVar(&formato, "output", "", "formato que se pide al backend (se reenvía en QueryRequest.output)")
 	cmd.Flags().BoolVar(&comoCSV, "csv", false, "render local del resultado en CSV")
 	return cmd
+}
+
+// formatValue formatea un valor no nulo de una fila (el llamador decide qué
+// hacer con los nulos: CSV y texto los representan de forma distinta). Los
+// números llegan siempre como float64 tras json.Unmarshal -JSON no
+// distingue enteros de decimales-: se formatean con strconv.FormatFloat en
+// notación decimal fija -sin exponente- y con la representación más corta
+// que conserva el valor exacto, así que un entero como 1200 sale "1200", no
+// "1200.0000" ni "1.2e+03" -que es lo que da fmt.Sprintf("%v", ...), cuyo
+// verbo %v usa %g para float64 y cambia a notación exponencial con cifras
+// grandes o con muchos decimales-.
+func formatValue(v any) string {
+	if f, ok := v.(float64); ok {
+		return strconv.FormatFloat(f, 'f', -1, 64)
+	}
+	return fmt.Sprintf("%v", v)
+}
+
+// cellValue formatea una celda para la tabla de texto. Un valor nulo -un
+// NULL explícito del backend, o una columna ausente en una fila
+// heterogénea, que en Go llegan igual: f[c] devuelve nil en ambos casos- se
+// muestra como "NULL", no como el "<nil>" que da fmt por defecto:  "<nil>"
+// sería indistinguible de una cadena de negocio real con ese valor.
+func cellValue(v any) string {
+	if v == nil {
+		return "NULL"
+	}
+	return formatValue(v)
+}
+
+// csvConflictsWithOutputMode comprueba si, junto a --csv, se ha pedido
+// también alguno de los flags de modo de salida (--json, --quiet, --md,
+// --jq). Son modos de salida incompatibles entre sí -uno decide qué se
+// escribe en stdout, no los dos a la vez-, y devuelve el nombre del primero
+// que encuentra activo, o "" si no hay conflicto.
+func csvConflictsWithOutputMode(cmd *cobra.Command) string {
+	if v, _ := cmd.Flags().GetBool("json"); v {
+		return "--json"
+	}
+	if v, _ := cmd.Flags().GetBool("quiet"); v {
+		return "--quiet"
+	}
+	if v, _ := cmd.Flags().GetBool("md"); v {
+		return "--md"
+	}
+	if v, _ := cmd.Flags().GetString("jq"); v != "" {
+		return "--jq"
+	}
+	return ""
 }
 
 // columnsOf deduce las columnas de las filas, en orden estable.
@@ -178,7 +252,15 @@ func writeCSV(w io.Writer, columnas []string, filas []map[string]any) error {
 	for _, f := range filas {
 		registro := make([]string, 0, len(columnas))
 		for _, c := range columnas {
-			registro = append(registro, fmt.Sprintf("%v", f[c]))
+			v := f[c]
+			if v == nil {
+				// RFC 4180: un nulo -NULL explícito, o una columna ausente
+				// en una fila heterogénea- es un campo vacío, no la cadena
+				// "<nil>".
+				registro = append(registro, "")
+				continue
+			}
+			registro = append(registro, formatValue(v))
 		}
 		if err := cw.Write(registro); err != nil {
 			return err
