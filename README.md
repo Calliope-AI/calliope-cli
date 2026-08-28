@@ -102,6 +102,42 @@ Sin esas variables, esos tests se saltan; y por la etiqueta de compilación
 `//go:build e2e`, `go test ./...` ni siquiera los compila, así que el CI
 normal no depende de ninguna organización real.
 
+## Apuntar a otro backend
+
+`calliope` habla por defecto con `https://data-0.calliope.so`. Para probar
+contra un despliegue local o de staging, basta una variable de entorno:
+
+    CALLIOPE_BASE_URL=http://localhost:8080 calliope doctor
+
+`doctor` dice siempre contra qué backend está hablando y de dónde salió ese
+valor, así que nunca hay duda:
+
+    calliope doctor --json --jq '.data[]|select(.name=="backend")'
+
+También se puede fijar de forma permanente en la configuración global:
+
+    calliope config set base_url http://localhost:8080
+
+Lo que **no** puede fijarlo es un `.calliope/config.json` de proyecto. Es
+deliberado: ese fichero viaja dentro de cualquier repositorio que clones, y si
+pudiera cambiar el backend, clonar un repositorio hostil y ejecutar
+`calliope ask` mandaría tu token a una máquina ajena. El CLI ignora ese campo
+en las capas de proyecto y avisa por stderr.
+
+### Correr el smoke sin backend
+
+`test/e2e/backend-falso.py` levanta un backend de mentira que implementa los
+endpoints del smoke, sin dependencias:
+
+    python3 test/e2e/backend-falso.py &
+    CALLIOPE_E2E=1 CALLIOPE_API_KEY=cualquiera CALLIOPE_ORG=miorg \
+      CALLIOPE_BASE_URL=http://127.0.0.1:8899 \
+      go test -tags=e2e ./test/e2e/ -v
+
+Sirve para desarrollar y para CI, pero **no sustituye** al smoke contra el
+backend real: un stub que devuelve lo que el CLI espera no puede descubrir
+que el CLI espera algo equivocado.
+
 ## Estado del proyecto
 
 Con honestidad, esto es lo que falta:
