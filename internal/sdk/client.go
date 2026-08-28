@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -105,9 +106,10 @@ func (c *Client) Do(ctx context.Context, method, path string, body, out any) err
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
-		// El cuerpo se descarta a propósito: no filtramos internals del backend.
-		io.Copy(io.Discard, resp.Body)
-		return mapStatus(resp.StatusCode)
+		// Para los status conocidos el cuerpo se descarta: el mensaje propio es
+		// más útil que el del backend. Para el resto sí se lee, acotado, porque
+		// es lo único que permite diagnosticar un fallo del servidor.
+		return mapStatus(resp.StatusCode, resp.Body)
 	}
 
 	if out == nil {
@@ -132,7 +134,14 @@ func (c *Client) Do(ctx context.Context, method, path string, body, out any) err
 
 // mapStatus traduce el status a un error limpio, sin cuerpo del backend.
 // Sigue el criterio de mapError en calliope-data-mcp.
-func mapStatus(status int) error {
+func mapStatus(status int, cuerpo io.Reader) error {
+	// El cuerpo se descarta siempre: el spec (§6.3) prohíbe filtrar la
+	// respuesta del backend, y con razón -puede traer trazas con rutas de
+	// ficheros del servidor-. El status sí se muestra: no es el cuerpo, no
+	// revela internals, y sin él un 500, un 502 y un 504 son indistinguibles
+	// y por tanto imposibles de diagnosticar desde el terminal del usuario.
+	io.Copy(io.Discard, cuerpo)
+
 	switch {
 	case status == http.StatusUnauthorized || status == http.StatusForbidden:
 		return output.NewError(output.CodeUnauthorized,
@@ -148,7 +157,7 @@ func mapStatus(status int) error {
 			"Espera unos segundos y reinténtalo.")
 	default:
 		return output.NewError(output.CodeGeneric,
-			"Error al consultar Calliope Data.",
+			fmt.Sprintf("Calliope Data respondió HTTP %d.", status),
 			"Diagnostica la conexión con: calliope doctor")
 	}
 }

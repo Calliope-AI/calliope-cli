@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -225,4 +226,51 @@ func asCLIError(err error, target **output.CLIError) bool {
 		*target = e
 	}
 	return ok
+}
+
+// --- Diagnosticabilidad de los fallos del backend ---
+//
+// El CLI corre en la máquina del usuario y con su identidad, así que puede
+// decirle qué respondió el backend. Ocultar el status (herencia del MCP, donde
+// el consumidor es un agente remoto que no debe ver internals) deja al usuario
+// sin nada que diagnosticar: un 500, un 502 y un 504 se veían idénticos.
+
+func TestErrorDeBackendIncluyeElStatusHTTP(t *testing.T) {
+	for _, status := range []int{500, 502, 503, 504} {
+		c, _ := testClient(t, func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(status)
+		})
+		err := c.Do(context.Background(), http.MethodGet, "/v1/x", nil, nil)
+
+		if err == nil {
+			t.Fatalf("status %d: se esperaba error", status)
+		}
+		if !strings.Contains(err.Error(), strconv.Itoa(status)) {
+			t.Errorf("status %d: el mensaje no lo menciona, y sin el status el fallo no se puede diagnosticar: %q",
+				status, err.Error())
+		}
+	}
+}
+
+func TestLosErroresConocidosNoCambianDeMensaje(t *testing.T) {
+	casos := []struct {
+		status int
+		quiero string
+	}{
+		{401, "No autorizado para acceder a estos datos."},
+		{404, "Recurso no encontrado."},
+		{429, "Se ha superado el límite de solicitudes."},
+	}
+	for _, caso := range casos {
+		c, _ := testClient(t, func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(caso.status)
+			w.Write([]byte(`{"message":"ruido interno que no debe filtrarse"}`))
+		})
+		err := c.Do(context.Background(), http.MethodGet, "/v1/x", nil, nil)
+
+		if err == nil || err.Error() != caso.quiero {
+			t.Errorf("status %d: mensaje = %q, se esperaba exactamente %q",
+				caso.status, err, caso.quiero)
+		}
+	}
 }
