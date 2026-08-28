@@ -143,8 +143,48 @@ func TestOrgsUseSinArgumentoDaErrorEnEspanolConHintYCodigoDeUso(t *testing.T) {
 	if cliErr.Hint == "" {
 		t.Error("el error debería traer un hint con la forma de uso")
 	}
-	if !strings.Contains(cliErr.Hint, "calliope orgs use") {
-		t.Errorf("el hint debería nombrar el comando concreto: %q", cliErr.Hint)
+	// Comparación exacta, no solo "contiene": esto también protege que
+	// usageLine recorte el sufijo " [flags]" que Cobra añadiría de otro modo
+	// (el comando hereda los flags globales persistentes de la raíz), que no
+	// aporta nada a un hint sobre número de argumentos.
+	if want := "Uso: calliope orgs use <organización>"; cliErr.Hint != want {
+		t.Errorf("hint = %q, se esperaba %q", cliErr.Hint, want)
+	}
+	if strings.Contains(cliErr.Message, "accepts") || strings.Contains(cliErr.Message, "arg(s)") {
+		t.Errorf("el mensaje no debe ser el de Cobra en inglés: %q", cliErr.Message)
+	}
+	if got := output.ExitCodeFor(err); got != 2 {
+		t.Errorf("código de salida = %d, se esperaba 2 (uso incorrecto)", got)
+	}
+}
+
+// TestOrgsUseConArgumentosDeMasDaErrorEnEspanolConHintYCodigoDeUso es el
+// reverso de la anterior: exactArgs(1) también debe rechazar un exceso de
+// argumentos (len(args) == n falla igual por arriba que por abajo), pero
+// nada lo ejercitaba.
+func TestOrgsUseConArgumentosDeMasDaErrorEnEspanolConHintYCodigoDeUso(t *testing.T) {
+	d, stdout, _ := depsWithServer(t, func(w http.ResponseWriter, r *http.Request) {})
+
+	root := testRoot(NewOrgsCmd(d), stdout)
+	root.SetArgs([]string{"orgs", "use", "acme", "globex"})
+	err := root.Execute()
+	if err == nil {
+		t.Fatal("se esperaba error con argumentos de más")
+	}
+
+	var cliErr *output.CLIError
+	if !errors.As(err, &cliErr) {
+		t.Fatalf("el error debería ser un *output.CLIError, fue %T", err)
+	}
+	if cliErr.Hint == "" {
+		t.Error("el error debería traer un hint con la forma de uso")
+	}
+	// Comparación exacta, no solo "contiene": esto también protege que
+	// usageLine recorte el sufijo " [flags]" que Cobra añadiría de otro modo
+	// (el comando hereda los flags globales persistentes de la raíz), que no
+	// aporta nada a un hint sobre número de argumentos.
+	if want := "Uso: calliope orgs use <organización>"; cliErr.Hint != want {
+		t.Errorf("hint = %q, se esperaba %q", cliErr.Hint, want)
 	}
 	if strings.Contains(cliErr.Message, "accepts") || strings.Contains(cliErr.Message, "arg(s)") {
 		t.Errorf("el mensaje no debe ser el de Cobra en inglés: %q", cliErr.Message)

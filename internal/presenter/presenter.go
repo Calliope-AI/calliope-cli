@@ -67,5 +67,10 @@ func Render(r Result, opts Options) error {
 func writeJSON(w io.Writer, v any) error {
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
+	// Sin esto, "<" y ">" salen como \u003c y \u003e: JSON válido, pero
+	// ilegible en un hint como "calliope orgs use <organización>". El
+	// consumidor de este modo es un agente o una persona leyendo la salida
+	// cruda, no un navegador, así que no hace falta la cautela de html/template.
+	enc.SetEscapeHTML(false)
 	return enc.Encode(v)
 }

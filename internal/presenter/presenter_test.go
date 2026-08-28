@@ -109,3 +109,28 @@ func TestSinRenderMarkdownCaeAJSON(t *testing.T) {
 		t.Errorf("se esperaba el envelope completo, se obtuvo: %q", out.String())
 	}
 }
+
+// TestRenderJSONNoEscapaHTML comprueba que un hint con "<" y ">" (por
+// ejemplo, el placeholder de un argumento: "calliope orgs use
+// <organización>") sale literal en modo --json, no como </>. Sigue
+// siendo JSON válido de cualquier forma, pero el consumidor principal de este
+// modo es un agente o una persona leyendo la salida cruda.
+func TestRenderJSONNoEscapaHTML(t *testing.T) {
+	r := Result{
+		Envelope: output.OKEnvelope(
+			map[string]string{"hint": "calliope orgs use <organización>"},
+			"resumen",
+		),
+	}
+
+	var out bytes.Buffer
+	if err := Render(r, Options{Mode: ModeJSON, Out: &out}); err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	if !strings.Contains(out.String(), "<organización>") {
+		t.Errorf("el JSON debe llevar \"<organización>\" literal, se obtuvo: %q", out.String())
+	}
+	if strings.Contains(out.String(), `\u003c`) || strings.Contains(out.String(), `\u003e`) {
+		t.Errorf("el JSON escapó < o > como \\u003c/\\u003e: %q", out.String())
+	}
+}
