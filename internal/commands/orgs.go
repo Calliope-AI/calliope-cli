@@ -65,7 +65,7 @@ func newOrgsUseCmd(d appctx.Deps) *cobra.Command {
 	return &cobra.Command{
 		Use:   "use <organización>",
 		Short: "Fija la organización activa en este directorio",
-		Args:  cobra.ExactArgs(1),
+		Args:  exactArgs(1, "calliope orgs use <organización>"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			dir := filepath.Join(d.Cwd, ".calliope")
 			if err := os.MkdirAll(dir, 0o755); err != nil {

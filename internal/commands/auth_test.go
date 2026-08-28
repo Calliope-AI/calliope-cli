@@ -2,6 +2,7 @@ package commands
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/calliope/calliope-cli/internal/appctx"
 	"github.com/calliope/calliope-cli/internal/auth"
+	"github.com/calliope/calliope-cli/internal/output"
 )
 
 // testRoot monta una raíz con los mismos flags globales que la real y le
@@ -136,5 +138,68 @@ func TestAuthStatusNoImprimeElToken(t *testing.T) {
 	}
 	if strings.Contains(stdout.String(), "cal_live_secreto") {
 		t.Error("auth status no debe imprimir el token completo")
+	}
+}
+
+// TestAuthStatusEnTTYNoImprimeElToken es la variante con IsTTY:true de la
+// prueba anterior. Con IsTTY:false (el cero de bool, lo que deja
+// depsWithServer) el modo de salida ModeAuto siempre cae a JSON y el
+// renderer Text nunca se llega a ejecutar: una fuga del token ahí pasaría
+// inadvertida. Fijando IsTTY:true se ejercita de verdad el camino de Text.
+func TestAuthStatusEnTTYNoImprimeElToken(t *testing.T) {
+	d, stdout, st := depsWithServer(t, func(w http.ResponseWriter, r *http.Request) {})
+	d.IsTTY = true
+	if err := st.Save(auth.Credential{Kind: auth.KindAPIKey, Token: "cal_live_secreto"}); err != nil {
+		t.Fatal(err)
+	}
+
+	root := testRoot(NewAuthCmd(d), stdout)
+	root.SetArgs([]string{"auth", "status"})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("status: %v", err)
+	}
+	if strings.Contains(stdout.String(), "cal_live_secreto") {
+		t.Error("auth status no debe imprimir el token completo (renderer de texto, IsTTY)")
+	}
+}
+
+func TestAuthTokenImprimeElTokenResuelto(t *testing.T) {
+	d, stdout, st := depsWithServer(t, func(w http.ResponseWriter, r *http.Request) {})
+	if err := st.Save(auth.Credential{Kind: auth.KindAPIKey, Token: "cal_live_para_script"}); err != nil {
+		t.Fatal(err)
+	}
+
+	root := testRoot(NewAuthCmd(d), stdout)
+	root.SetArgs([]string{"auth", "token"})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("token: %v", err)
+	}
+	if got := strings.TrimSpace(stdout.String()); got != "cal_live_para_script" {
+		t.Errorf("stdout = %q, se esperaba el token resuelto", got)
+	}
+}
+
+func TestAuthTokenSinCredencialDevuelveErrorConHint(t *testing.T) {
+	// depsWithServer no deja ninguna credencial disponible: ni variables
+	// CALLIOPE_API_KEY/CALLIOPE_TOKEN en el entorno simulado ni nada guardado
+	// en el almacén.
+	d, stdout, _ := depsWithServer(t, func(w http.ResponseWriter, r *http.Request) {})
+
+	root := testRoot(NewAuthCmd(d), stdout)
+	root.SetArgs([]string{"auth", "token"})
+	err := root.Execute()
+	if err == nil {
+		t.Fatal("se esperaba error sin credencial")
+	}
+
+	var cliErr *output.CLIError
+	if !errors.As(err, &cliErr) {
+		t.Fatalf("el error debería ser un *output.CLIError, fue %T", err)
+	}
+	if cliErr.Hint == "" {
+		t.Error("el error debería traer un hint con la acción de recuperación")
+	}
+	if got := output.ExitCodeFor(err); got != 3 {
+		t.Errorf("código de salida = %d, se esperaba 3 (no autorizado)", got)
 	}
 }
