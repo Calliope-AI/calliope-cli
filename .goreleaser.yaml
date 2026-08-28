@@ -1,0 +1,47 @@
+version: 2
+project_name: calliope
+
+builds:
+  - id: calliope
+    main: ./cmd/calliope
+    binary: calliope
+    env: [CGO_ENABLED=0]
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    ldflags:
+      - -s -w
+      - -X github.com/calliope/calliope-cli/internal/version.Version={{.Version}}
+      - -X github.com/calliope/calliope-cli/internal/version.Commit={{.ShortCommit}}
+      - -X github.com/calliope/calliope-cli/internal/version.Date={{.Date}}
+
+archives:
+  - formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+
+checksum:
+  name_template: checksums.txt
+
+nfpms:
+  - formats: [deb, rpm, apk]
+    maintainer: Calliope Data
+    description: CLI de Calliope Data
+    license: Proprietary
+
+brews:
+  - repository:
+      owner: calliope
+      name: homebrew-tap
+    description: CLI de Calliope Data
+    install: |
+      bin.install "calliope"
+
+scoops:
+  - repository:
+      owner: calliope
+      name: scoop-bucket
+    description: CLI de Calliope Data
+
+release:
+  draft: false

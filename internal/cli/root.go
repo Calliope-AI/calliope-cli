@@ -3,6 +3,7 @@ package cli
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -25,7 +26,7 @@ func NewRootCmd(d appctx.Deps) *cobra.Command {
 	appctx.RegisterGlobalFlags(root)
 
 	root.AddCommand(
-		newVersionCmd(),
+		newVersionCmd(d),
 		commands.NewAuthCmd(d),
 		commands.NewOrgsCmd(d),
 		commands.NewConfigCmd(d),
@@ -41,13 +42,22 @@ func NewRootCmd(d appctx.Deps) *cobra.Command {
 	return root
 }
 
-func newVersionCmd() *cobra.Command {
+func newVersionCmd(d appctx.Deps) *cobra.Command {
 	return &cobra.Command{
 		Use:   "version",
 		Short: "Muestra la versión de calliope",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			fmt.Fprintf(cmd.OutOrStdout(), "calliope %s (%s, %s)\n",
 				version.Version, version.Commit, version.Date)
+
+			// La línea de aviso solo sale en terminal interactivo: en una
+			// tubería rompería a quien parsee la salida.
+			if d.IsTTY {
+				if nueva := version.LatestVersion(version.ReleasesURL, version.Version, 2*time.Second); nueva != "" {
+					fmt.Fprintf(cmd.OutOrStdout(),
+						"\nHay una versión más reciente: %s. Actualiza con: brew upgrade calliope\n", nueva)
+				}
+			}
 			return nil
 		},
 	}
