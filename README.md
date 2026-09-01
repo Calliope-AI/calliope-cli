@@ -24,6 +24,11 @@ código de salida 3. Esa pantalla lista las claves de la organización entera, n
 solo las tuyas, así que también se ve ahí la que creó un compañero, con su
 último uso.
 
+Al lado, en **Configuración → API**, está la referencia HTTP: qué llamada hay
+debajo de cada comando, con un `curl` por endpoint y la forma de la respuesta.
+Útil para saber qué se puede pedir, y para integrar desde donde no llegue este
+CLI.
+
 `calliope doctor` diagnostica instalación, credencial y conectividad.
 
 Hoy la autenticación es solo por clave de API (`auth login --api-key` o la
