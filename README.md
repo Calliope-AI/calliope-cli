@@ -13,9 +13,16 @@ de negocio de tu organización, desde el terminal y desde agentes de IA.
 
 ## Primeros pasos
 
-    calliope auth login --api-key <clave>   # créala en el UI, en Observabilidad → Claves API
+    calliope auth login --api-key <clave>
     calliope orgs use <organización>
     calliope ask "¿cómo van las ventas este trimestre?"
+
+La clave se crea en el UI, en **Configuración → Claves de API**, con rol Owner
+o Admin. Pertenece a **una sola organización**: la que estuviera seleccionada
+al crearla. Si `orgs use` apunta a otra, el CLI corta con «No autorizado» y
+código de salida 3. Esa pantalla lista las claves de la organización entera, no
+solo las tuyas, así que también se ve ahí la que creó un compañero, con su
+último uso.
 
 `calliope doctor` diagnostica instalación, credencial y conectividad.
 
