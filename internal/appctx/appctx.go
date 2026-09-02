@@ -4,10 +4,12 @@
 package appctx
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -102,11 +104,6 @@ func Build(cmd *cobra.Command, d Deps) (*Context, error) {
 	if ctx.Org == "" {
 		ctx.Org = cred.Org
 	}
-	if ctx.Org == "" {
-		return nil, output.NewError(output.CodeUsage,
-			"No hay ninguna organización seleccionada.",
-			"Elige una con: calliope orgs use <nombre>   (lista las disponibles con: calliope orgs list)")
-	}
 
 	ctx.Client = sdk.New(sdk.Options{
 		BaseURL:    ctx.Cfg.BaseURL(),
@@ -114,6 +111,21 @@ func Build(cmd *cobra.Command, d Deps) (*Context, error) {
 		Timeout:    TimeoutOf(ctx.Cfg),
 		UserAgent:  "calliope-cli/" + version.Version,
 	})
+
+	if ctx.Org == "" {
+		// cmd.Context() es nil en un comando que no ha pasado por Execute
+		// (Cobra solo lo rellena ahí). Build es una función de librería y no
+		// debe depender de eso.
+		cctx := cmd.Context()
+		if cctx == nil {
+			cctx = context.Background()
+		}
+		org, err := resolveOrgFromCredential(cctx, ctx.Client)
+		if err != nil {
+			return nil, err
+		}
+		ctx.Org = org
+	}
 	return ctx, nil
 }
 
@@ -230,4 +242,36 @@ func TimeoutOf(cfg *config.Config) time.Duration {
 		return 60 * time.Second
 	}
 	return d
+}
+
+// resolveOrgFromCredential cubre el spec §8.3: si la credencial alcanza a una
+// sola organización, se usa sin preguntar; si alcanza a varias, el error las
+// lista para que elegir sea un copiar y pegar.
+//
+// Solo se llama cuando no hay organización por ninguna otra vía, así que no
+// añade una petición de red a las invocaciones normales.
+func resolveOrgFromCredential(ctx context.Context, c *sdk.Client) (string, error) {
+	me, err := c.Me(ctx)
+	if err != nil {
+		// Un fallo aquí no debe tapar el problema real: al usuario le falta
+		// una organización, y la acción que lo desbloquea es la misma.
+		return "", errNoOrg("")
+	}
+	if len(me.Organizations) == 1 {
+		return me.Organizations[0].Name, nil
+	}
+
+	nombres := make([]string, 0, len(me.Organizations))
+	for _, o := range me.Organizations {
+		nombres = append(nombres, o.Name)
+	}
+	return "", errNoOrg(strings.Join(nombres, ", "))
+}
+
+func errNoOrg(disponibles string) *output.CLIError {
+	hint := "Elige una con: calliope orgs use <nombre>   (lista las disponibles con: calliope orgs list)"
+	if disponibles != "" {
+		hint = "Elige una con: calliope orgs use <nombre>   Disponibles: " + disponibles
+	}
+	return output.NewError(output.CodeUsage, "No hay ninguna organización seleccionada.", hint)
 }

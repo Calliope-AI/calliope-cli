@@ -2,6 +2,7 @@ package commands
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -294,5 +295,133 @@ func TestAuthTokenSinCredencialDevuelveErrorConHint(t *testing.T) {
 	}
 	if got := output.ExitCodeFor(err); got != 3 {
 		t.Errorf("código de salida = %d, se esperaba 3 (no autorizado)", got)
+	}
+}
+
+// depsWithServerNoOrg es depsWithServer sin CALLIOPE_ORG, para ejercitar los
+// comandos que deben funcionar antes de haber elegido organización.
+func depsWithServerNoOrg(t *testing.T, h http.HandlerFunc) (appctx.Deps, *bytes.Buffer, auth.Store) {
+	t.Helper()
+	d, stdout, st := depsWithServer(t, h)
+	anterior := d.Env
+	d.Env = func(k string) string {
+		if k == "CALLIOPE_ORG" {
+			return ""
+		}
+		return anterior(k)
+	}
+	return d, stdout, st
+}
+
+// El alcance real de una credencial es lo que responde el backend, no lo que
+// el usuario haya fijado en local con `orgs use`. Mostrar el valor local bajo
+// una etiqueta que parece del servidor hizo creer a un usuario que su clave
+// estaba acotada a una organización cuando alcanzaba a siete.
+func TestAuthStatusMuestraElAlcanceRealDeLaCredencial(t *testing.T) {
+	d, stdout, st := depsWithServer(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{
+			"id": "u-1", "email": "yo@ejemplo.com",
+			"organizations": [
+				{"id":"o-1","name":"acme","userRole":"Owner"},
+				{"id":"o-2","name":"otra","userRole":"Member"}
+			]}`))
+	})
+	if err := st.Save(auth.Credential{Kind: auth.KindAPIKey, Token: "cal_live_x", Org: "acme"}); err != nil {
+		t.Fatal(err)
+	}
+
+	root := testRoot(NewAuthCmd(d), stdout)
+	root.SetArgs([]string{"auth", "status", "--json"})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("status: %v", err)
+	}
+
+	var env struct {
+		Data struct {
+			OrganizacionActiva string `json:"organizacionActiva"`
+			Organizaciones     []struct {
+				Name string `json:"name"`
+				Rol  string `json:"rol"`
+			} `json:"organizaciones"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &env); err != nil {
+		t.Fatalf("json inválido: %v\n%s", err, stdout.String())
+	}
+
+	if len(env.Data.Organizaciones) != 2 {
+		t.Fatalf("se esperaban las 2 organizaciones del backend, hubo %d:\n%s",
+			len(env.Data.Organizaciones), stdout.String())
+	}
+	if env.Data.Organizaciones[0].Name != "acme" || env.Data.Organizaciones[1].Name != "otra" {
+		t.Errorf("nombres inesperados: %+v", env.Data.Organizaciones)
+	}
+	if env.Data.Organizaciones[0].Rol != "Owner" {
+		t.Errorf("el rol debe llegar al usuario: %+v", env.Data.Organizaciones[0])
+	}
+	if env.Data.OrganizacionActiva != "acme" {
+		t.Errorf("organizacionActiva = %q, se esperaba la fijada en local", env.Data.OrganizacionActiva)
+	}
+}
+
+// El campo "organizacion" a secas se prestaba a leerse como «el alcance de mi
+// clave». Ya no debe existir: o es la activa en local, o son las del backend.
+func TestAuthStatusNoUsaLaEtiquetaAmbigua(t *testing.T) {
+	d, stdout, st := depsWithServer(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"id":"u-1","email":"yo@ejemplo.com","organizations":[{"id":"o-1","name":"acme"}]}`))
+	})
+	if err := st.Save(auth.Credential{Kind: auth.KindAPIKey, Token: "cal_live_x", Org: "acme"}); err != nil {
+		t.Fatal(err)
+	}
+
+	root := testRoot(NewAuthCmd(d), stdout)
+	root.SetArgs([]string{"auth", "status", "--json"})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("status: %v", err)
+	}
+
+	var env struct {
+		Data map[string]any `json:"data"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &env); err != nil {
+		t.Fatalf("json inválido: %v", err)
+	}
+	if _, existe := env.Data["organizacion"]; existe {
+		t.Errorf("la clave ambigua \"organizacion\" sigue ahí: %v", env.Data)
+	}
+}
+
+// `auth status` es el comando que se ejecuta para saber qué organizaciones
+// tiene uno. Exigir que ya haya uno elegido lo hace inútil justo cuando más
+// se necesita: al empezar, o al no saber qué alcance tiene la clave.
+func TestAuthStatusFuncionaSinOrganizacionElegida(t *testing.T) {
+	d, stdout, st := depsWithServerNoOrg(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"id":"u-1","email":"yo@ejemplo.com","organizations":[
+			{"id":"o-1","name":"acme"},{"id":"o-2","name":"otra"}]}`))
+	})
+	if err := st.Save(auth.Credential{Kind: auth.KindAPIKey, Token: "cal_live_x"}); err != nil {
+		t.Fatal(err)
+	}
+
+	root := testRoot(NewAuthCmd(d), stdout)
+	root.SetArgs([]string{"auth", "status", "--json"})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("auth status debe funcionar sin organización elegida: %v", err)
+	}
+
+	var env struct {
+		Data struct {
+			OrganizacionActiva string                  `json:"organizacionActiva"`
+			Organizaciones     []struct{ Name string } `json:"organizaciones"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &env); err != nil {
+		t.Fatalf("json inválido: %v\n%s", err, stdout.String())
+	}
+	if len(env.Data.Organizaciones) != 2 {
+		t.Errorf("debe listar el alcance aunque no haya organización activa: %s", stdout.String())
+	}
+	if env.Data.OrganizacionActiva != "" {
+		t.Errorf("organizacionActiva debería ir vacía: %q", env.Data.OrganizacionActiva)
 	}
 }

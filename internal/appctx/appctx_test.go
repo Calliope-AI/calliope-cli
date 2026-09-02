@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -284,5 +286,117 @@ func TestDefaultDepsUsaElEndpointRealDeVersion(t *testing.T) {
 	d := DefaultDeps()
 	if d.ReleasesURL != version.ReleasesURL {
 		t.Errorf("DefaultDeps().ReleasesURL = %q, se esperaba %q", d.ReleasesURL, version.ReleasesURL)
+	}
+}
+
+// depsConBackend monta unas Deps con credencial y con CALLIOPE_BASE_URL
+// apuntando a un servidor de prueba, para ejercitar la autoresolución de
+// organización, que necesita preguntarle al backend.
+func depsConBackend(t *testing.T, h http.HandlerFunc) Deps {
+	t.Helper()
+	srv := httptest.NewServer(h)
+	t.Cleanup(srv.Close)
+
+	st := auth.NewFileStore(filepath.Join(t.TempDir(), "c.json"))
+	if err := st.Save(auth.Credential{Kind: auth.KindAPIKey, Token: "k"}); err != nil {
+		t.Fatal(err)
+	}
+	home := t.TempDir()
+	return Deps{
+		Cwd: t.TempDir(),
+		Env: func(k string) string {
+			switch k {
+			case "HOME":
+				return home
+			case "CALLIOPE_BASE_URL":
+				return srv.URL
+			}
+			return ""
+		},
+		Store:  st,
+		Stdout: &bytes.Buffer{},
+		Stderr: &bytes.Buffer{},
+	}
+}
+
+// El spec §8.3: «Si la credencial está limitada a una sola organización, se
+// resuelve sola.» Obligar a `orgs use` cuando no hay más que una es fricción
+// gratuita, y fue lo primero que chocó a un usuario real.
+func TestConUnaSolaOrganizacionSeResuelveSola(t *testing.T) {
+	d := depsConBackend(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"id":"u-1","email":"yo@ejemplo.com",
+			"organizations":[{"id":"o-1","name":"acme","userRole":"Owner"}]}`))
+	})
+
+	ctx, err := Build(commandWithFlags(nil), d)
+	if err != nil {
+		t.Fatalf("con una sola organización no debe pedir que se elija: %v", err)
+	}
+	if ctx.Org != "acme" {
+		t.Errorf("Org = %q, se esperaba la única de la credencial", ctx.Org)
+	}
+}
+
+// El spec §8.3: «Si hay varias y no hay contexto, el error lista las
+// organizaciones disponibles en hint.»
+func TestConVariasOrganizacionesElErrorLasLista(t *testing.T) {
+	d := depsConBackend(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"id":"u-1","email":"yo@ejemplo.com","organizations":[
+			{"id":"o-1","name":"acme"},{"id":"o-2","name":"otra"}]}`))
+	})
+
+	_, err := Build(commandWithFlags(nil), d)
+	if err == nil {
+		t.Fatal("con varias organizaciones debe pedir que se elija")
+	}
+	var cliErr *output.CLIError
+	if !errors.As(err, &cliErr) {
+		t.Fatalf("se esperaba un CLIError, hubo %T", err)
+	}
+	if !strings.Contains(cliErr.Hint, "acme") || !strings.Contains(cliErr.Hint, "otra") {
+		t.Errorf("el hint debe listar las organizaciones disponibles: %q", cliErr.Hint)
+	}
+}
+
+// Si el backend no responde, el usuario debe seguir viendo un error útil
+// sobre la organización -no el error de red-, porque la acción que lo
+// desbloquea es la misma: elegir una.
+func TestSiElBackendFallaElErrorSigueSiendoElDeOrganizacion(t *testing.T) {
+	d := depsConBackend(t, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	})
+
+	_, err := Build(commandWithFlags(nil), d)
+	if err == nil {
+		t.Fatal("se esperaba error")
+	}
+	var cliErr *output.CLIError
+	if !errors.As(err, &cliErr) || cliErr.Code != output.CodeUsage {
+		t.Fatalf("se esperaba un error de uso sobre la organización, hubo: %v", err)
+	}
+	if !strings.Contains(cliErr.Hint, "orgs use") {
+		t.Errorf("el hint debe decir cómo elegirla: %q", cliErr.Hint)
+	}
+}
+
+// La organización ya fijada gana: no se gasta una petición de red en
+// preguntar algo que ya se sabe.
+func TestConOrganizacionFijadaNoConsultaAlBackend(t *testing.T) {
+	llamadas := 0
+	d := depsConBackend(t, func(w http.ResponseWriter, r *http.Request) {
+		llamadas++
+		w.Write([]byte(`{"organizations":[{"name":"acme"}]}`))
+	})
+	writeProjectConfig(t, d.Cwd, map[string]string{"org": "yaelegida"})
+
+	ctx, err := Build(commandWithFlags(nil), d)
+	if err != nil {
+		t.Fatalf("build: %v", err)
+	}
+	if ctx.Org != "yaelegida" {
+		t.Errorf("Org = %q", ctx.Org)
+	}
+	if llamadas != 0 {
+		t.Errorf("no debe consultar al backend si ya hay organización: %d llamadas", llamadas)
 	}
 }
