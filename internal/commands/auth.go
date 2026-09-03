@@ -99,7 +99,8 @@ func newAuthStatusCmd(d appctx.Deps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			me, err := clientWith(ctx, cred).Me(cmd.Context())
+			cliente := clientWith(ctx, cred)
+			me, err := cliente.Me(cmd.Context())
 			if err != nil {
 				return err
 			}
@@ -108,9 +109,25 @@ func newAuthStatusCmd(d appctx.Deps) *cobra.Command {
 			// organización activa es una preferencia local. Mezclarlos bajo
 			// una sola etiqueta "organizacion" hacía creer que una clave
 			// estaba acotada cuando no lo estaba.
-			alcance := make([]orgDelUsuario, 0, len(me.Organizations))
-			for _, o := range me.Organizations {
-				alcance = append(alcance, orgDelUsuario{Name: o.Name, ID: o.ID, Rol: o.UserRole})
+			//
+			// Sale de /v1/organizations y NO de me.Organizations, por dos
+			// motivos verificados contra el backend real: /v1/auth/me no
+			// aplicaba el alcance de la clave, y devuelve ids de PropelAuth
+			// con sesión JWT -inservibles para construir rutas
+			// /v1/organizations/{id}/…- frente a ids de Calliope con clave
+			// de API. Mismo criterio que la autoresolución en appctx.
+			var alcance []orgDelUsuario
+			var notaAlcance string
+			if orgs, err := cliente.ListOrganizations(cmd.Context()); err != nil {
+				// Que no se pueda leer el alcance no debe tumbar el comando:
+				// su función principal es decir quién eres. Pero una lista
+				// vacía a secas se leería como «ninguna», así que se explica.
+				notaAlcance = "No se pudo leer el alcance de la credencial: " + err.Error()
+			} else {
+				alcance = make([]orgDelUsuario, 0, len(orgs))
+				for _, o := range orgs {
+					alcance = append(alcance, orgDelUsuario{Name: o.Name, Estado: o.Status})
+				}
 			}
 			datos := estadoDeAutenticacion{
 				Email:              me.Email,
@@ -119,6 +136,7 @@ func newAuthStatusCmd(d appctx.Deps) *cobra.Command {
 				Origen:             origen,
 				OrganizacionActiva: ctx.Org,
 				Organizaciones:     alcance,
+				OrganizacionesNota: notaAlcance,
 			}
 			return ctx.Render(presenter.Result{
 				Envelope: output.OKEnvelope(datos, "autenticado como "+me.Email,
@@ -127,6 +145,10 @@ func newAuthStatusCmd(d appctx.Deps) *cobra.Command {
 					// El token nunca se imprime aquí; para eso está `auth token`.
 					if _, err := fmt.Fprintf(w, "Autenticado como %s\nCredencial: %s (%s)\nOrganización activa: %s\n",
 						me.Email, cred.Kind, origen, orgActivaODefecto(ctx.Org)); err != nil {
+						return err
+					}
+					if notaAlcance != "" {
+						_, err := fmt.Fprintln(w, notaAlcance)
 						return err
 					}
 					if len(alcance) == 0 {
@@ -138,8 +160,8 @@ func newAuthStatusCmd(d appctx.Deps) *cobra.Command {
 					}
 					for _, o := range alcance {
 						linea := "  " + o.Name
-						if o.Rol != "" {
-							linea += " (" + o.Rol + ")"
+						if o.Estado != "" {
+							linea += " (" + o.Estado + ")"
 						}
 						if _, err := fmt.Fprintln(w, linea); err != nil {
 							return err
@@ -205,12 +227,16 @@ type estadoDeAutenticacion struct {
 	Origen             string          `json:"origen"`
 	OrganizacionActiva string          `json:"organizacionActiva"`
 	Organizaciones     []orgDelUsuario `json:"organizaciones"`
+	OrganizacionesNota string          `json:"organizacionesNota,omitempty"`
 }
 
+// orgDelUsuario NO expone el id de la organización a propósito: las rutas
+// /v1/organizations/{org}/… van por nombre, y con el id de Calliope el
+// backend responde 403 (comprobado contra un backend real en rules y en
+// database/schema). Mostrarlo invitaba a copiarlo a una URL donde no sirve.
 type orgDelUsuario struct {
-	Name string `json:"name"`
-	ID   string `json:"id,omitempty"`
-	Rol  string `json:"rol,omitempty"`
+	Name   string `json:"name"`
+	Estado string `json:"estado,omitempty"`
 }
 
 // orgActivaODefecto evita imprimir una línea "Organización activa:" vacía

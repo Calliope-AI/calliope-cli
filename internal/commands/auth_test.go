@@ -319,12 +319,12 @@ func depsWithServerNoOrg(t *testing.T, h http.HandlerFunc) (appctx.Deps, *bytes.
 // estaba acotada a una organización cuando alcanzaba a siete.
 func TestAuthStatusMuestraElAlcanceRealDeLaCredencial(t *testing.T) {
 	d, stdout, st := depsWithServer(t, func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(`{
-			"id": "u-1", "email": "yo@ejemplo.com",
-			"organizations": [
-				{"id":"o-1","name":"acme","userRole":"Owner"},
-				{"id":"o-2","name":"otra","userRole":"Member"}
-			]}`))
+		if strings.HasSuffix(r.URL.Path, "/auth/me") {
+			w.Write([]byte(`{"id":"u-1","email":"yo@ejemplo.com"}`))
+			return
+		}
+		w.Write([]byte(`[{"id":"o-1","name":"acme","status":"ACTIVE"},
+			{"id":"o-2","name":"otra","status":"ACTIVE"}]`))
 	})
 	if err := st.Save(auth.Credential{Kind: auth.KindAPIKey, Token: "cal_live_x", Org: "acme"}); err != nil {
 		t.Fatal(err)
@@ -340,8 +340,8 @@ func TestAuthStatusMuestraElAlcanceRealDeLaCredencial(t *testing.T) {
 		Data struct {
 			OrganizacionActiva string `json:"organizacionActiva"`
 			Organizaciones     []struct {
-				Name string `json:"name"`
-				Rol  string `json:"rol"`
+				Name   string `json:"name"`
+				Estado string `json:"estado"`
 			} `json:"organizaciones"`
 		} `json:"data"`
 	}
@@ -356,8 +356,8 @@ func TestAuthStatusMuestraElAlcanceRealDeLaCredencial(t *testing.T) {
 	if env.Data.Organizaciones[0].Name != "acme" || env.Data.Organizaciones[1].Name != "otra" {
 		t.Errorf("nombres inesperados: %+v", env.Data.Organizaciones)
 	}
-	if env.Data.Organizaciones[0].Rol != "Owner" {
-		t.Errorf("el rol debe llegar al usuario: %+v", env.Data.Organizaciones[0])
+	if env.Data.Organizaciones[0].Estado != "ACTIVE" {
+		t.Errorf("el estado debe llegar al usuario: %+v", env.Data.Organizaciones[0])
 	}
 	if env.Data.OrganizacionActiva != "acme" {
 		t.Errorf("organizacionActiva = %q, se esperaba la fijada en local", env.Data.OrganizacionActiva)
@@ -368,7 +368,11 @@ func TestAuthStatusMuestraElAlcanceRealDeLaCredencial(t *testing.T) {
 // clave». Ya no debe existir: o es la activa en local, o son las del backend.
 func TestAuthStatusNoUsaLaEtiquetaAmbigua(t *testing.T) {
 	d, stdout, st := depsWithServer(t, func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(`{"id":"u-1","email":"yo@ejemplo.com","organizations":[{"id":"o-1","name":"acme"}]}`))
+		if strings.HasSuffix(r.URL.Path, "/auth/me") {
+			w.Write([]byte(`{"id":"u-1","email":"yo@ejemplo.com"}`))
+			return
+		}
+		w.Write([]byte(`[{"id":"o-1","name":"acme"}]`))
 	})
 	if err := st.Save(auth.Credential{Kind: auth.KindAPIKey, Token: "cal_live_x", Org: "acme"}); err != nil {
 		t.Fatal(err)
@@ -396,8 +400,11 @@ func TestAuthStatusNoUsaLaEtiquetaAmbigua(t *testing.T) {
 // se necesita: al empezar, o al no saber qué alcance tiene la clave.
 func TestAuthStatusFuncionaSinOrganizacionElegida(t *testing.T) {
 	d, stdout, st := depsWithServerNoOrg(t, func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(`{"id":"u-1","email":"yo@ejemplo.com","organizations":[
-			{"id":"o-1","name":"acme"},{"id":"o-2","name":"otra"}]}`))
+		if strings.HasSuffix(r.URL.Path, "/auth/me") {
+			w.Write([]byte(`{"id":"u-1","email":"yo@ejemplo.com"}`))
+			return
+		}
+		w.Write([]byte(`[{"id":"o-1","name":"acme"},{"id":"o-2","name":"otra"}]`))
 	})
 	if err := st.Save(auth.Credential{Kind: auth.KindAPIKey, Token: "cal_live_x"}); err != nil {
 		t.Fatal(err)
@@ -423,5 +430,103 @@ func TestAuthStatusFuncionaSinOrganizacionElegida(t *testing.T) {
 	}
 	if env.Data.OrganizacionActiva != "" {
 		t.Errorf("organizacionActiva debería ir vacía: %q", env.Data.OrganizacionActiva)
+	}
+}
+
+// El alcance debe leerse de /v1/organizations, no de /v1/auth/me. Dos razones,
+// ambas confirmadas contra el backend real: /me no aplicaba el alcance de la
+// clave, y devuelve ids de PropelAuth con sesión JWT -que no sirven para
+// construir rutas /v1/organizations/{id}/…- frente a ids de Calliope con clave
+// de API.
+func TestAuthStatusLeeElAlcanceDeOrganizationsNoDeMe(t *testing.T) {
+	var vistos []string
+	d, stdout, st := depsWithServerNoOrg(t, func(w http.ResponseWriter, r *http.Request) {
+		vistos = append(vistos, r.URL.Path)
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/auth/me"):
+			// /me miente a propósito en este test: si el comando lo usara
+			// para el alcance, mostraría estas y el test lo cazaría.
+			w.Write([]byte(`{"id":"u-1","email":"yo@ejemplo.com","organizations":[
+				{"id":"propelauth-701766f9","name":"ajena1"},
+				{"id":"propelauth-812877aa","name":"ajena2"}]}`))
+		default:
+			w.Write([]byte(`[{"id":"calliope-01985fc1","name":"lamia","status":"ACTIVE"}]`))
+		}
+	})
+	if err := st.Save(auth.Credential{Kind: auth.KindAPIKey, Token: "cal_live_x"}); err != nil {
+		t.Fatal(err)
+	}
+
+	root := testRoot(NewAuthCmd(d), stdout)
+	root.SetArgs([]string{"auth", "status", "--json"})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("status: %v", err)
+	}
+
+	var env struct {
+		Data struct {
+			Organizaciones []struct {
+				Name string `json:"name"`
+				ID   string `json:"id"`
+			} `json:"organizaciones"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &env); err != nil {
+		t.Fatalf("json inválido: %v\n%s", err, stdout.String())
+	}
+	if len(env.Data.Organizaciones) != 1 || env.Data.Organizaciones[0].Name != "lamia" {
+		t.Fatalf("el alcance debe salir de /v1/organizations, no de /auth/me: %+v", env.Data.Organizaciones)
+	}
+	// El id no se expone: las rutas van por nombre y con el id el backend
+	// responde 403, así que mostrarlo solo invita a usarlo donde no sirve.
+	if env.Data.Organizaciones[0].ID != "" {
+		t.Errorf("no debe exponerse el id de la organización: %q", env.Data.Organizaciones[0].ID)
+	}
+	consultoOrganizations := false
+	for _, p := range vistos {
+		if strings.HasSuffix(p, "/v1/organizations") {
+			consultoOrganizations = true
+		}
+	}
+	if !consultoOrganizations {
+		t.Errorf("no llegó a consultar /v1/organizations; rutas vistas: %v", vistos)
+	}
+}
+
+// Si el listado de organizaciones falla, `auth status` debe seguir diciendo
+// quién eres -es su función principal- y decir que el alcance no se pudo
+// leer, en vez de mostrar una lista vacía que se leería como «ninguna».
+func TestAuthStatusSobreviveASiElAlcanceNoSePuedeLeer(t *testing.T) {
+	d, stdout, st := depsWithServerNoOrg(t, func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/auth/me") {
+			w.Write([]byte(`{"id":"u-1","email":"yo@ejemplo.com"}`))
+			return
+		}
+		w.WriteHeader(http.StatusInternalServerError)
+	})
+	if err := st.Save(auth.Credential{Kind: auth.KindAPIKey, Token: "cal_live_x"}); err != nil {
+		t.Fatal(err)
+	}
+
+	root := testRoot(NewAuthCmd(d), stdout)
+	root.SetArgs([]string{"auth", "status", "--json"})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("auth status debe seguir funcionando: %v", err)
+	}
+
+	var env struct {
+		Data struct {
+			Email              string `json:"email"`
+			OrganizacionesNota string `json:"organizacionesNota"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &env); err != nil {
+		t.Fatalf("json inválido: %v\n%s", err, stdout.String())
+	}
+	if env.Data.Email != "yo@ejemplo.com" {
+		t.Errorf("debe seguir diciendo quién eres: %s", stdout.String())
+	}
+	if env.Data.OrganizacionesNota == "" {
+		t.Errorf("una lista vacía sin explicación se lee como «ninguna»; falta la nota: %s", stdout.String())
 	}
 }
