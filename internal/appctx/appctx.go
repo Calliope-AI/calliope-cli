@@ -248,21 +248,26 @@ func TimeoutOf(cfg *config.Config) time.Duration {
 // sola organización, se usa sin preguntar; si alcanza a varias, el error las
 // lista para que elegir sea un copiar y pegar.
 //
+// Consulta GET /v1/organizations, que el backend acota al alcance de la
+// credencial. NO usa GET /v1/auth/me: ese devuelve todas las organizaciones
+// del usuario, que no es lo mismo -una clave creada para una organización
+// pertenece a un usuario que puede estar en varias-.
+//
 // Solo se llama cuando no hay organización por ninguna otra vía, así que no
 // añade una petición de red a las invocaciones normales.
 func resolveOrgFromCredential(ctx context.Context, c *sdk.Client) (string, error) {
-	me, err := c.Me(ctx)
+	orgs, err := c.ListOrganizations(ctx)
 	if err != nil {
 		// Un fallo aquí no debe tapar el problema real: al usuario le falta
 		// una organización, y la acción que lo desbloquea es la misma.
 		return "", errNoOrg("")
 	}
-	if len(me.Organizations) == 1 {
-		return me.Organizations[0].Name, nil
+	if len(orgs) == 1 {
+		return orgs[0].Name, nil
 	}
 
-	nombres := make([]string, 0, len(me.Organizations))
-	for _, o := range me.Organizations {
+	nombres := make([]string, 0, len(orgs))
+	for _, o := range orgs {
 		nombres = append(nombres, o.Name)
 	}
 	return "", errNoOrg(strings.Join(nombres, ", "))

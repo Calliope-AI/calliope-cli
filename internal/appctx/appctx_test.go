@@ -322,10 +322,32 @@ func depsConBackend(t *testing.T, h http.HandlerFunc) Deps {
 // El spec §8.3: «Si la credencial está limitada a una sola organización, se
 // resuelve sola.» Obligar a `orgs use` cuando no hay más que una es fricción
 // gratuita, y fue lo primero que chocó a un usuario real.
+// La autoresolución lee /v1/organizations, no /v1/auth/me: el primero está
+// acotado al alcance de la credencial y el segundo devuelve todas las
+// organizaciones del usuario, que no es lo mismo.
+func TestLaAutoresolucionUsaElEndpointAcotado(t *testing.T) {
+	var visto []string
+	d := depsConBackend(t, func(w http.ResponseWriter, r *http.Request) {
+		visto = append(visto, r.URL.Path)
+		w.Write([]byte(`[{"id":"o-1","name":"acme"}]`))
+	})
+
+	if _, err := Build(commandWithFlags(nil), d); err != nil {
+		t.Fatalf("build: %v", err)
+	}
+	for _, p := range visto {
+		if strings.Contains(p, "/auth/me") {
+			t.Errorf("no debe resolver desde /v1/auth/me: devuelve todas las del usuario, no las de la credencial (rutas: %v)", visto)
+		}
+	}
+	if len(visto) == 0 || !strings.Contains(visto[0], "/v1/organizations") {
+		t.Errorf("se esperaba una consulta a /v1/organizations, hubo: %v", visto)
+	}
+}
+
 func TestConUnaSolaOrganizacionSeResuelveSola(t *testing.T) {
 	d := depsConBackend(t, func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(`{"id":"u-1","email":"yo@ejemplo.com",
-			"organizations":[{"id":"o-1","name":"acme","userRole":"Owner"}]}`))
+		w.Write([]byte(`[{"id":"o-1","name":"acme","status":"ACTIVE"}]`))
 	})
 
 	ctx, err := Build(commandWithFlags(nil), d)
@@ -341,8 +363,7 @@ func TestConUnaSolaOrganizacionSeResuelveSola(t *testing.T) {
 // organizaciones disponibles en hint.»
 func TestConVariasOrganizacionesElErrorLasLista(t *testing.T) {
 	d := depsConBackend(t, func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(`{"id":"u-1","email":"yo@ejemplo.com","organizations":[
-			{"id":"o-1","name":"acme"},{"id":"o-2","name":"otra"}]}`))
+		w.Write([]byte(`[{"id":"o-1","name":"acme"},{"id":"o-2","name":"otra"}]`))
 	})
 
 	_, err := Build(commandWithFlags(nil), d)
@@ -385,7 +406,7 @@ func TestConOrganizacionFijadaNoConsultaAlBackend(t *testing.T) {
 	llamadas := 0
 	d := depsConBackend(t, func(w http.ResponseWriter, r *http.Request) {
 		llamadas++
-		w.Write([]byte(`{"organizations":[{"name":"acme"}]}`))
+		w.Write([]byte(`[{"name":"acme"}]`))
 	})
 	writeProjectConfig(t, d.Cwd, map[string]string{"org": "yaelegida"})
 
